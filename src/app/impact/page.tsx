@@ -12,15 +12,15 @@ export default function ProfilePage() {
   const { state } = useApp()
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] pb-28">
-      <TopAppBar title="Profile" />
+      <TopAppBar title="My Impact" />
 
       <main className="px-5 py-6 space-y-6">
         
         {/* Title */}
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-brand-secondary)] mb-1">Your Impact So Far</h1>
+          <h1 className="text-2xl font-bold text-[var(--color-brand-secondary)] mb-1">Your Positive Footprint</h1>
           <p className="text-sm font-medium text-[var(--color-brand-secondary)]/60">
-            Keep exploring responsibly.
+            See how your travels are helping local communities.
           </p>
         </div>
 

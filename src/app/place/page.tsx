@@ -3,9 +3,8 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { CrowdBadge } from "@/components/ui/badge"
-import { ArrowLeft, Clock, Map, Info, BookOpen, Camera, Star, Lightbulb, MapPin, Share } from "lucide-react"
+import { ArrowLeft, Map, Info, BookOpen, Camera, Star, Lightbulb, Share } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 
 export default function PlaceDetailsPage() {
   return (
@@ -42,29 +41,13 @@ export default function PlaceDetailsPage() {
         </div>
 
         {/* Crowd Intelligence Alert */}
-        <div className="bg-[var(--color-crowd-high)]/10 border border-[var(--color-crowd-high)]/20 rounded-xl p-4 mb-6 relative overflow-hidden">
-          <div className="flex gap-3 mb-4">
-            <Info className="w-5 h-5 text-[var(--color-crowd-high)] shrink-0 mt-0.5" />
-            <p className="text-sm font-semibold text-[var(--color-brand-secondary)]">
-              This heritage site is important and worth visiting, but there may be a better time.
-            </p>
+        <div className="bg-[var(--color-crowd-high)]/10 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <div className="bg-white rounded-full p-1.5 shrink-0 shadow-sm mt-0.5">
+            <Info className="w-4 h-4 text-[var(--color-crowd-high)]" />
           </div>
-          
-          <div className="grid grid-cols-2 gap-4 bg-white/60 rounded-lg p-3">
-            <div>
-              <span className="block text-[10px] font-bold uppercase text-[var(--color-brand-secondary)]/50 tracking-wider mb-1">Est. Waiting</span>
-              <div className="flex items-center text-sm font-bold text-[var(--color-brand-secondary)]">
-                <Clock className="w-3.5 h-3.5 mr-1.5 text-[var(--color-crowd-high)]" />
-                40–50 min
-              </div>
-            </div>
-            <div>
-              <span className="block text-[10px] font-bold uppercase text-[var(--color-brand-secondary)]/50 tracking-wider mb-1">Best Time</span>
-              <div className="text-sm font-bold text-[var(--color-brand-secondary)]">
-                After 3:00 PM
-              </div>
-            </div>
-          </div>
+          <p className="text-sm font-semibold text-[var(--color-brand-secondary)] leading-snug">
+            Popular heritage site. Expect some delays and crowded pathways.
+          </p>
         </div>
 
         {/* Quick Nav Icons */}

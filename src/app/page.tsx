@@ -7,9 +7,12 @@ import { SearchBar } from "@/components/ui/search-bar"
 import { PlaceCard } from "@/components/ui/place-card"
 import { ExperienceCard } from "@/components/ui/experience-card"
 import { SectionHeading } from "@/components/ui/section-heading"
-import { Bell, MapPin, ChevronDown } from "lucide-react"
+import { FilterModal } from "@/components/ui/filter-modal"
+import { Bell, MapPin, ChevronDown, Users, SlidersHorizontal } from "lucide-react"
 
 export default function HomeExplorePage() {
+  const [isFilterModalOpen, setIsFilterModalOpen] = React.useState(false)
+
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] pb-24">
       {/* Header */}
@@ -40,7 +43,15 @@ export default function HomeExplorePage() {
             <p className="text-[var(--color-brand-secondary)]/70 text-xs mt-1">Discover smart, crowd-aware routes through Nepal&apos;s rich cultural sites.</p>
           </div>
           
-          <SearchBar placeholder="Search places, experiences..." />
+          <div className="flex gap-2">
+            <SearchBar placeholder="Search places, experiences..." />
+            <button 
+              onClick={() => setIsFilterModalOpen(true)}
+              className="w-12 h-12 flex-shrink-0 bg-[var(--color-brand-primary)] text-white rounded-full flex items-center justify-center shadow-md hover:bg-[var(--color-brand-primary)]/90 transition-colors"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+            </button>
+          </div>
           
           <div className="flex items-center text-sm font-medium text-[var(--color-brand-secondary)]/80 inline-flex px-3 py-1.5 rounded-full bg-white border border-[var(--color-brand-secondary)]/10 shadow-sm w-fit cursor-pointer hover:bg-[var(--color-brand-secondary)]/5 transition-colors">
             <MapPin className="h-4 w-4 text-[var(--color-brand-primary)] mr-1.5" />
@@ -53,17 +64,20 @@ export default function HomeExplorePage() {
         <section>
           <SectionHeading title="Live Crowd Overview" className="mb-3" />
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[var(--color-crowd-low)]/10 border border-[var(--color-crowd-low)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+            <div className="bg-[var(--color-crowd-low)]/10 rounded-[16px] p-3 flex flex-col items-center justify-center">
+              <Users className="h-6 w-6 text-[var(--color-crowd-low)] mb-2" />
               <span className="text-[var(--color-crowd-low)] font-bold text-sm">Low</span>
-              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">12 Places</span>
+              <span className="text-[var(--color-brand-secondary)]/70 text-xs font-medium">12 Places</span>
             </div>
-            <div className="bg-[var(--color-crowd-mod)]/10 border border-[var(--color-crowd-mod)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+            <div className="bg-[var(--color-crowd-mod)]/10 rounded-[16px] p-3 flex flex-col items-center justify-center">
+              <Users className="h-6 w-6 text-[var(--color-crowd-mod)] mb-2" />
               <span className="text-[var(--color-crowd-mod)] font-bold text-sm">Moderate</span>
-              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">18 Places</span>
+              <span className="text-[var(--color-brand-secondary)]/70 text-xs font-medium">18 Places</span>
             </div>
-            <div className="bg-[var(--color-crowd-high)]/10 border border-[var(--color-crowd-high)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+            <div className="bg-[var(--color-crowd-high)]/10 rounded-[16px] p-3 flex flex-col items-center justify-center">
+              <Users className="h-6 w-6 text-[var(--color-crowd-high)] mb-2" />
               <span className="text-[var(--color-crowd-high)] font-bold text-sm">High</span>
-              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">7 Places</span>
+              <span className="text-[var(--color-brand-secondary)]/70 text-xs font-medium">7 Places</span>
             </div>
           </div>
         </section>
@@ -109,7 +123,6 @@ export default function HomeExplorePage() {
             <div className="snap-start shrink-0">
               <ExperienceCard 
                 title="Traditional Woodcarving Workshop"
-                provider="Local Artisan"
                 price="NPR 800"
                 rating={4.8}
                 duration="45 min"
@@ -119,7 +132,6 @@ export default function HomeExplorePage() {
             <div className="snap-start shrink-0">
               <ExperienceCard 
                 title="Newari Lunch Experience"
-                provider="Local Host"
                 price="NPR 1,200"
                 rating={4.9}
                 duration="60 min"
@@ -129,7 +141,6 @@ export default function HomeExplorePage() {
             <div className="snap-start shrink-0">
               <ExperienceCard 
                 title="Heritage Walk Patan"
-                provider="Local Guide"
                 price="NPR 600"
                 rating={4.7}
                 duration="90 min"
@@ -142,6 +153,7 @@ export default function HomeExplorePage() {
       </main>
 
       <BottomNav />
+      <FilterModal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} />
     </div>
   )
 }

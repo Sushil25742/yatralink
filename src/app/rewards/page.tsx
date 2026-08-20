@@ -29,17 +29,12 @@ export default function RewardsPage() {
           <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
           
           <div className="relative z-10 flex flex-col items-center">
-            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-4 border border-white/30 shadow-sm">
-              <Award className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-sm font-bold tracking-widest uppercase text-white/70 mb-1">Current Balance</span>
-            <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-5xl font-bold tracking-tight">{state.heritagePoints}</span>
-              <span className="text-lg font-semibold text-white/80">pts</span>
-            </div>
-            <p className="text-sm font-medium text-white/90 leading-relaxed max-w-[250px]">
-              Earn points for exploring responsibly and supporting local experiences.
-            </p>
+            <span className="text-5xl font-bold tracking-tight mb-1">{state.heritagePoints} <span className="text-3xl">Points</span></span>
+            <span className="text-sm font-semibold tracking-wide text-white/80 mb-5">Bronze Traveler</span>
+            
+            <button className="bg-white text-[var(--color-brand-primary)] font-bold text-sm px-6 py-2.5 rounded-full hover:bg-white/90 transition-colors shadow-sm">
+              Redeem Rewards
+            </button>
           </div>
         </div>
 
