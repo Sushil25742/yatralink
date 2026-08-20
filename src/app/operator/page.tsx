@@ -31,9 +31,9 @@ export default function OperatorDashboardPage() {
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold">Traditional Woodcarving Workshop</h1>
-            <button className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
+            <Link href="/operator/settings" className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors">
               <Settings className="w-5 h-5" />
-            </button>
+            </Link>
           </div>
           <p className="text-sm font-medium text-white/70">Welcome back! Here is your summary for today.</p>
         </div>
@@ -111,7 +111,7 @@ export default function OperatorDashboardPage() {
               <p className="text-xl font-bold text-amber-900">4.8 <span className="text-sm font-semibold opacity-60">/ 5.0</span></p>
             </div>
           </div>
-          <button className="text-amber-700 hover:text-amber-900 font-semibold text-sm">Read Reviews</button>
+          <Link href="/operator/reviews" className="text-amber-700 hover:text-amber-900 font-semibold text-sm underline-offset-2 hover:underline transition-all">Read Reviews</Link>
         </div>
 
         {/* Management Menu */}
