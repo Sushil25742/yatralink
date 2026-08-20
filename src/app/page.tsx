@@ -1,69 +1,147 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+import * as React from "react"
+import { TopAppBar } from "@/components/ui/top-app-bar"
+import { BottomNav } from "@/components/ui/bottom-nav"
+import { SearchBar } from "@/components/ui/search-bar"
+import { PlaceCard } from "@/components/ui/place-card"
+import { ExperienceCard } from "@/components/ui/experience-card"
+import { SectionHeading } from "@/components/ui/section-heading"
+import { Bell, MapPin, ChevronDown } from "lucide-react"
+
+export default function HomeExplorePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="min-h-screen bg-[var(--color-bg-base)] pb-24">
+      {/* Header */}
+      <TopAppBar 
+        title="" 
+        leading={
+          <div className="flex items-center gap-2 px-2">
+            <div className="h-8 w-8 rounded-full bg-[var(--color-brand-primary)] flex items-center justify-center text-white font-bold text-lg">
+              Y
+            </div>
+            <span className="font-bold text-[var(--color-brand-primary)] text-xl tracking-tight">YatraLink</span>
+          </div>
+        }
+        trailing={
+          <button className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-[var(--color-brand-secondary)]/5 text-[var(--color-brand-secondary)]">
+            <Bell className="h-5 w-5" />
+          </button>
+        }
+      />
+
+      <main className="px-4 py-4 space-y-8">
+        
+        {/* Greeting & Search */}
+        <section className="space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-brand-secondary)]">Namaste, Traveler! 👋</h1>
+            <p className="text-sm font-semibold text-[var(--color-brand-primary)] mt-0.5">Travel Better. Support Local. Preserve Heritage.</p>
+            <p className="text-[var(--color-brand-secondary)]/70 text-xs mt-1">Discover smart, crowd-aware routes through Nepal&apos;s rich cultural sites.</p>
+          </div>
+          
+          <SearchBar placeholder="Search places, experiences..." />
+          
+          <div className="flex items-center text-sm font-medium text-[var(--color-brand-secondary)]/80 inline-flex px-3 py-1.5 rounded-full bg-white border border-[var(--color-brand-secondary)]/10 shadow-sm w-fit cursor-pointer hover:bg-[var(--color-brand-secondary)]/5 transition-colors">
+            <MapPin className="h-4 w-4 text-[var(--color-brand-primary)] mr-1.5" />
+            Patan, Lalitpur
+            <ChevronDown className="h-4 w-4 ml-1 text-[var(--color-brand-secondary)]/50" />
+          </div>
+        </section>
+
+        {/* Section 1: Live Crowd Overview */}
+        <section>
+          <SectionHeading title="Live Crowd Overview" className="mb-3" />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-[var(--color-crowd-low)]/10 border border-[var(--color-crowd-low)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+              <span className="text-[var(--color-crowd-low)] font-bold text-sm">Low</span>
+              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">12 Places</span>
+            </div>
+            <div className="bg-[var(--color-crowd-mod)]/10 border border-[var(--color-crowd-mod)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+              <span className="text-[var(--color-crowd-mod)] font-bold text-sm">Moderate</span>
+              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">18 Places</span>
+            </div>
+            <div className="bg-[var(--color-crowd-high)]/10 border border-[var(--color-crowd-high)]/20 rounded-[16px] p-3 text-center flex flex-col items-center justify-center">
+              <span className="text-[var(--color-crowd-high)] font-bold text-sm">High</span>
+              <span className="text-[var(--color-brand-secondary)] text-xs mt-0.5 font-medium">7 Places</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 2: Top Places Near You */}
+        <section>
+          <SectionHeading title="Top Places Near You" className="mb-3" />
+          <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar snap-x snap-mandatory">
+            <div className="snap-start shrink-0">
+              <PlaceCard 
+                title="Patan Durbar Square"
+                location="Lalitpur"
+                distance="2.1 km"
+                status="HIGH"
+                imageUrl="https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&q=80&w=800"
+              />
+            </div>
+            <div className="snap-start shrink-0">
+              <PlaceCard 
+                title="Golden Temple"
+                location="Lalitpur"
+                distance="1.5 km"
+                status="MODERATE"
+                imageUrl="https://images.unsplash.com/photo-1518002054494-3a6f94352e9d?auto=format&fit=crop&q=80&w=800"
+              />
+            </div>
+            <div className="snap-start shrink-0">
+              <PlaceCard 
+                title="Mangal Bazaar"
+                location="Lalitpur"
+                distance="1.2 km"
+                status="LOW"
+                imageUrl="https://images.unsplash.com/photo-1588614959060-4d144f28b2ea?auto=format&fit=crop&q=80&w=800"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Section 3: Local Experiences */}
+        <section>
+          <SectionHeading title="Local Experiences" className="mb-3" />
+          <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 hide-scrollbar snap-x snap-mandatory">
+            <div className="snap-start shrink-0">
+              <ExperienceCard 
+                title="Traditional Woodcarving Workshop"
+                provider="Local Artisan"
+                price="NPR 800"
+                rating={4.8}
+                duration="45 min"
+                imageUrl="https://images.unsplash.com/photo-1610701596007-11502861dcfa?auto=format&fit=crop&q=80&w=400"
+              />
+            </div>
+            <div className="snap-start shrink-0">
+              <ExperienceCard 
+                title="Newari Lunch Experience"
+                provider="Local Host"
+                price="NPR 1,200"
+                rating={4.9}
+                duration="60 min"
+                imageUrl="https://images.unsplash.com/photo-1551465223-92f7633c7f96?auto=format&fit=crop&q=80&w=400"
+              />
+            </div>
+            <div className="snap-start shrink-0">
+              <ExperienceCard 
+                title="Heritage Walk Patan"
+                provider="Local Guide"
+                price="NPR 600"
+                rating={4.7}
+                duration="90 min"
+                imageUrl="https://images.unsplash.com/photo-1518002054494-3a6f94352e9d?auto=format&fit=crop&q=80&w=400"
+              />
+            </div>
+          </div>
+        </section>
+
       </main>
+
+      <BottomNav />
     </div>
-  );
+  )
 }
