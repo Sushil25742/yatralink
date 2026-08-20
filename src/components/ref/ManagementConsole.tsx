@@ -1,0 +1,1701 @@
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { api, ws } from "@/lib/platform";
+import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import {
+  Activity,
+  ArrowDownToLine,
+  BarChart3,
+  Bell,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  CircleDollarSign,
+  Clock,
+  Edit3,
+  Eye,
+  Home,
+  LayoutDashboard,
+  MapPin,
+  MessageSquare,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldCheck,
+  Star,
+  Store,
+  TicketCheck,
+  Trash2,
+  TrendingUp,
+  UserRoundCheck,
+  Users,
+  X,
+} from "lucide-react";
+import "leaflet/dist/leaflet.css";
+import "./management.css";
+type Role = "operator" | "superadmin";
+type User = { name: string; email: string; role: Role };
+type Place = {
+  id: string;
+  name: string;
+  category: string;
+  zone: string;
+  status: string;
+  crowd: string;
+  capacity: number;
+  visits: number;
+  lat: number;
+  lng: number;
+};
+type Experience = {
+  id: string;
+  title: string;
+  operatorId: string;
+  category: string;
+  price: number;
+  capacity: number;
+  status: string;
+  bookings: number;
+  rating: number;
+};
+type Booking = {
+  id: string;
+  guest: string;
+  experienceId: string;
+  experienceTitle?: string;
+  operatorId: string;
+  date: string;
+  time: string;
+  guests: number;
+  amount: number;
+  status: string;
+};
+type Operator = {
+  id: string;
+  name: string;
+  business: string;
+  email: string;
+  status: string;
+  experiences: number;
+  rating: number;
+  revenue: number;
+};
+type CrowdSite = {
+  id: string;
+  name: string;
+  level: string;
+  score: number;
+  wait: string;
+  lat: number;
+  lng: number;
+  source?: string;
+};
+type Slot = {
+  id: string;
+  experienceId: string;
+  operatorId: string;
+  day: string;
+  time: string;
+  available: boolean;
+  capacity: number;
+  booked: number;
+};
+type Review = {
+  id: string;
+  guest: string;
+  rating: number;
+  text: string;
+  reply: string;
+};
+type State = {
+  places: Place[];
+  experiences: Experience[];
+  bookings: Booking[];
+  operators: Operator[];
+  crowdSites: CrowdSite[];
+  slots: Slot[];
+  reviews: Review[];
+  updated_at: number;
+};
+type AdminView =
+  | "overview"
+  | "places"
+  | "experiences"
+  | "bookings"
+  | "operators"
+  | "crowd"
+  | "analytics";
+type OperatorView =
+  "overview" | "experiences" | "bookings" | "calendar" | "earnings" | "reviews";
+const money = (n: number) => `NPR ${Math.round(n).toLocaleString()}`;
+const crowdClass = (x: string) => x.toLowerCase().replace(/\s+/g, "-");
+const kathmanduDate = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kathmandu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+function Brand() {
+  return (
+    <div className="mc-brand">
+      <span>
+        <MapPin />
+      </span>
+      <strong>
+        Yatra<b>Link</b>
+      </strong>
+    </div>
+  );
+}
+function Badge({
+  children,
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  tone?: string;
+}) {
+  return <span className={`mc-badge mc-badge--${tone}`}>{children}</span>;
+}
+function Stat({
+  icon,
+  value,
+  label,
+  delta,
+}: {
+  icon: ReactNode;
+  value: string;
+  label: string;
+  delta?: string;
+}) {
+  return (
+    <div className="mc-stat">
+      <span>{icon}</span>
+      <div>
+        <strong>{value}</strong>
+        <small>{label}</small>
+      </div>
+      {delta && <em>{delta}</em>}
+    </div>
+  );
+}
+function Drawer({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="mc-drawer-backdrop"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <aside className="mc-drawer">
+        <header>
+          <h2>{title}</h2>
+          <button onClick={onClose}>
+            <X />
+          </button>
+        </header>
+        {children}
+      </aside>
+    </div>
+  );
+}
+function download(name: string, rows: string[][]) {
+  const csv = rows
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const u = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const a = document.createElement("a");
+  a.href = u;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(u);
+}
+export default function ManagementConsole({
+  sessionId,
+  user,
+  onSettings,
+  onLogout,
+}: {
+  sessionId: string;
+  user: User;
+  onSettings: () => void;
+  onLogout: () => void;
+}) {
+  const [state, setState] = useState<State | null>(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(false);
+  const isAdmin = user.role === "superadmin";
+  const [adminView, setAdminView] = useState<AdminView>("overview"),
+    [operatorView, setOperatorView] = useState<OperatorView>("overview");
+  const connRef = useRef<ReturnType<typeof ws.connect> | null>(null);
+  const load = () =>
+    api
+      .get("/api/management/state", { session_id: sessionId })
+      .then(({ data }) => setState(data.state))
+      .catch(() => setError("Unable to load this workspace."))
+      .finally(() => setLoading(false));
+  useEffect(() => {
+    load();
+    const conn = ws.connect();
+    connRef.current = conn;
+    conn.onMessage((m) => {
+      if (
+        m?.type === "entity.update" &&
+        m.payload?.entity_type === "management"
+      )
+        load();
+    });
+    conn.ready.then(
+      () =>
+        conn.connectionId &&
+        api.post("/api/subscriptions", {
+          session_id: sessionId,
+          entity_type: "management",
+          entity_id: "shared",
+          connection_id: conn.connectionId,
+        }),
+    );
+    return () => conn.disconnect();
+  }, [sessionId]);
+  useEffect(() => {
+    const sync = () => {
+      const h = location.hash;
+      if (isAdmin && h.startsWith("#/manager/")) {
+        const v = h.split("/")[2] as AdminView;
+        if (
+          [
+            "overview",
+            "places",
+            "experiences",
+            "bookings",
+            "operators",
+            "crowd",
+            "analytics",
+          ].includes(v)
+        )
+          setAdminView(v);
+      } else if (!isAdmin && h.startsWith("#/operator/")) {
+        const v = h.split("/")[2] as OperatorView;
+        if (
+          [
+            "overview",
+            "experiences",
+            "bookings",
+            "calendar",
+            "earnings",
+            "reviews",
+          ].includes(v)
+        )
+          setOperatorView(v);
+      }
+    };
+    sync();
+    addEventListener("hashchange", sync);
+    return () => removeEventListener("hashchange", sync);
+  }, [isAdmin]);
+  const act = async (action: string, payload: Record<string, unknown> = {}) => {
+    setError("");
+    try {
+      const { data } = await api.post("/api/management/action", {
+        session_id: sessionId,
+        action,
+        payload,
+      });
+      setState(data.state);
+      return true;
+    } catch (err: any) {
+      setError(err?.message || "That action could not be completed.");
+      return false;
+    }
+  };
+  if (loading && !state)
+    return (
+      <div className="mc-loading">
+        <Brand />
+        <RefreshCw className="spin" />
+        Opening workspace…
+      </div>
+    );
+  if (!state)
+    return (
+      <div className="mc-loading">{error || "Workspace unavailable."}</div>
+    );
+  const operator = state.operators[0];
+  const navAdmin = (v: AdminView) => {
+      setAdminView(v);
+      location.hash = `#/manager/${v}`;
+    },
+    navOperator = (v: OperatorView) => {
+      setOperatorView(v);
+      location.hash = v === "overview" ? "#/operator" : `#/operator/${v}`;
+    };
+  return (
+    <div className="mc-shell">
+      {isAdmin ? (
+        <SidebarAdmin active={adminView} nav={navAdmin} logout={onLogout} />
+      ) : (
+        <SidebarOperator
+          active={operatorView}
+          nav={navOperator}
+          logout={onLogout}
+        />
+      )}
+      <main className="mc-main">
+        <header className="mc-topbar">
+          <div>
+            <h1>
+              {isAdmin
+                ? adminTitles[adminView][0]
+                : operatorTitles[operatorView][0]}
+            </h1>
+            <p>
+              {isAdmin
+                ? adminTitles[adminView][1]
+                : operatorTitles[operatorView][1]}
+            </p>
+          </div>
+          <div className="mc-topbar__actions">
+            <button className="mc-icon" onClick={() => setNotice(!notice)}>
+              <Bell />
+            </button>
+            <button className="mc-icon" onClick={onSettings}>
+              <Settings />
+            </button>
+            <div className="mc-user">
+              <span>{user.name[0]}</span>
+              <div>
+                <strong>{user.name}</strong>
+                <small>
+                  {isAdmin ? "Destination Manager" : "Local Operator"}
+                </small>
+              </div>
+            </div>
+          </div>
+        </header>
+        {error && (
+          <div className="mc-error">
+            {error}
+            <button onClick={() => setError("")}>
+              <X />
+            </button>
+          </div>
+        )}
+        {notice && (
+          <div className="mc-notifications">
+            <strong>Showcase alerts</strong>
+            <p>
+              <Activity /> Crowd state and booking exceptions update from shared
+              prototype data.
+            </p>
+          </div>
+        )}
+        <section className="mc-content">
+          {isAdmin ? (
+            <AdminRouter
+              view={adminView}
+              state={state}
+              act={act}
+              nav={navAdmin}
+            />
+          ) : (
+            <OperatorRouter
+              view={operatorView}
+              state={state}
+              operator={operator}
+              act={act}
+              nav={navOperator}
+            />
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+const adminTitles: Record<AdminView, [string, string]> = {
+  overview: [
+    "Destination overview",
+    "Monitor visitor flow, local commerce and operational priorities.",
+  ],
+  places: ["Places", "Manage heritage sites, zones and visitor-facing status."],
+  experiences: ["Experiences", "Review and manage local experience inventory."],
+  bookings: ["Bookings", "Track reservations and guest status."],
+  operators: ["Operators", "Verify local businesses and experience providers."],
+  crowd: [
+    "Crowd monitor",
+    "Manage destination pressure and traveler redistribution.",
+  ],
+  analytics: [
+    "Analytics",
+    "Prototype analytics are clearly labeled where simulated.",
+  ],
+};
+const operatorTitles: Record<OperatorView, [string, string]> = {
+  overview: [
+    "Operator overview",
+    "Today’s bookings, capacity and earnings at a glance.",
+  ],
+  experiences: [
+    "My experiences",
+    "Manage what travelers can discover and book.",
+  ],
+  bookings: ["Bookings", "Prepare for guests and update attendance."],
+  calendar: [
+    "Calendar & availability",
+    "Control bookable time slots and capacity.",
+  ],
+  earnings: ["Earnings", "Review booking value and statements."],
+  reviews: ["Reviews", "Read guest feedback and respond."],
+};
+function SidebarAdmin({
+  active,
+  nav,
+  logout,
+}: {
+  active: AdminView;
+  nav: (v: AdminView) => void;
+  logout: () => void;
+}) {
+  const items: [AdminView, string, ReactNode][] = [
+    ["overview", "Overview", <LayoutDashboard />],
+    ["places", "Places", <MapPin />],
+    ["experiences", "Experiences", <BookOpen />],
+    ["bookings", "Bookings", <TicketCheck />],
+    ["operators", "Operators", <Users />],
+    ["crowd", "Crowd", <Activity />],
+    ["analytics", "Analytics", <BarChart3 />],
+  ];
+  return (
+    <aside className="mc-sidebar">
+      <div className="mc-sidebar__head">
+        <Brand />
+        <small>Destination Manager</small>
+      </div>
+      <nav>
+        {items.map(([v, l, i]) => (
+          <button
+            key={v}
+            className={active === v ? "active" : ""}
+            onClick={() => nav(v)}
+          >
+            {i}
+            <span>{l}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="mc-sidebar__foot">
+        <button onClick={logout}>
+          <X />
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+function SidebarOperator({
+  active,
+  nav,
+  logout,
+}: {
+  active: OperatorView;
+  nav: (v: OperatorView) => void;
+  logout: () => void;
+}) {
+  const items: [OperatorView, string, ReactNode][] = [
+    ["overview", "Overview", <Home />],
+    ["experiences", "My Experiences", <Store />],
+    ["bookings", "Bookings", <TicketCheck />],
+    ["calendar", "Calendar", <CalendarDays />],
+    ["earnings", "Earnings", <CircleDollarSign />],
+    ["reviews", "Reviews", <Star />],
+  ];
+  return (
+    <aside className="mc-sidebar mc-sidebar--operator">
+      <div className="mc-sidebar__head">
+        <Brand />
+        <small>Operator Studio</small>
+      </div>
+      <nav>
+        {items.map(([v, l, i]) => (
+          <button
+            key={v}
+            className={active === v ? "active" : ""}
+            onClick={() => nav(v)}
+          >
+            {i}
+            <span>{l}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="mc-sidebar__foot">
+        <button onClick={logout}>
+          <X />
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+function AdminRouter({
+  view,
+  state,
+  act,
+  nav,
+}: {
+  view: AdminView;
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+  nav: (v: AdminView) => void;
+}) {
+  if (view === "places") return <PlacesPage state={state} act={act} />;
+  if (view === "experiences")
+    return <ExperiencesPage state={state} act={act} />;
+  if (view === "bookings")
+    return <BookingsPage state={state} act={act} admin />;
+  if (view === "operators") return <OperatorsPage state={state} act={act} />;
+  if (view === "crowd") return <CrowdPage state={state} act={act} />;
+  if (view === "analytics") return <AnalyticsPage state={state} />;
+  return <AdminOverview state={state} nav={nav} />;
+}
+function AdminOverview({
+  state,
+  nav,
+}: {
+  state: State;
+  nav: (v: AdminView) => void;
+}) {
+  const revenue = state.bookings
+    .filter((b) => !["Cancelled", "Refunded"].includes(b.status))
+    .reduce((s, b) => s + b.amount, 0);
+  return (
+    <>
+      <div className="mc-stats">
+        <Stat
+          icon={<Users />}
+          value={state.places
+            .reduce((s, p) => s + p.visits, 0)
+            .toLocaleString()}
+          label="Prototype visitors"
+        />
+        <Stat
+          icon={<TicketCheck />}
+          value={String(state.bookings.length)}
+          label="Bookings"
+        />
+        <Stat
+          icon={<CircleDollarSign />}
+          value={money(revenue)}
+          label="Booking value"
+        />
+        <Stat
+          icon={<Activity />}
+          value={String(Math.max(...state.crowdSites.map((x) => x.score), 0))}
+          label="Peak crowd score"
+        />
+      </div>
+      <div className="mc-dashboard-grid">
+        <section className="mc-card">
+          <div className="mc-card__head">
+            <div>
+              <small>LIVE / DEMO SIGNALS</small>
+              <h2>Destination pressure</h2>
+            </div>
+            <button onClick={() => nav("crowd")}>
+              Open monitor <ChevronRight />
+            </button>
+          </div>
+          {state.crowdSites.map((s) => (
+            <div className="mc-site-line" key={s.id}>
+              <div>
+                <strong>{s.name}</strong>
+                <small>
+                  {s.source || "Demo estimate"} · {s.wait}
+                </small>
+              </div>
+              <Badge tone={crowdClass(s.level)}>{s.level}</Badge>
+              <b>{s.score}</b>
+            </div>
+          ))}
+        </section>
+        <section className="mc-card">
+          <div className="mc-card__head">
+            <div>
+              <small>MODERATION</small>
+              <h2>Needs attention</h2>
+            </div>
+          </div>
+          <button className="mc-task" onClick={() => nav("experiences")}>
+            <BookOpen />
+            <span>
+              <b>
+                {state.experiences.filter((x) => x.status === "Pending").length}{" "}
+                pending experiences
+              </b>
+              <small>Admin approval required</small>
+            </span>
+            <ChevronRight />
+          </button>
+          <button className="mc-task" onClick={() => nav("bookings")}>
+            <TicketCheck />
+            <span>
+              <b>
+                {state.bookings.filter((x) => x.status === "Pending").length}{" "}
+                booking exceptions
+              </b>
+              <small>Review status</small>
+            </span>
+            <ChevronRight />
+          </button>
+        </section>
+      </div>
+    </>
+  );
+}
+function PlacesPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [q, setQ] = useState(""),
+    [editing, setEditing] = useState<Place | null | undefined>();
+  const rows = state.places.filter((p) =>
+    `${p.name} ${p.zone}`.toLowerCase().includes(q.toLowerCase()),
+  );
+  return (
+    <>
+      <Toolbar q={q} setQ={setQ}>
+        <button className="mc-primary" onClick={() => setEditing(null)}>
+          <Plus />
+          Add place
+        </button>
+      </Toolbar>
+      <div className="mc-table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Place</th>
+              <th>Zone</th>
+              <th>Crowd</th>
+              <th>Capacity</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <strong>{p.name}</strong>
+                  <small>{p.category}</small>
+                </td>
+                <td>{p.zone}</td>
+                <td>
+                  <Badge tone={crowdClass(p.crowd)}>{p.crowd}</Badge>
+                </td>
+                <td>{p.capacity}</td>
+                <td>{p.status}</td>
+                <td>
+                  <div className="mc-row-actions">
+                    <button onClick={() => setEditing(p)}>
+                      <Edit3 />
+                    </button>
+                    <button
+                      onClick={() =>
+                        act("place.update", {
+                          id: p.id,
+                          status: p.status === "Active" ? "Inactive" : "Active",
+                        })
+                      }
+                    >
+                      <Eye />
+                    </button>
+                    <button
+                      onClick={() =>
+                        confirm(`Delete ${p.name}?`) &&
+                        act("place.delete", { id: p.id })
+                      }
+                    >
+                      <Trash2 />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editing !== undefined && (
+        <PlaceEditor
+          place={editing}
+          close={() => setEditing(undefined)}
+          save={async (p) => {
+            if (
+              await act(
+                editing ? "place.update" : "place.create",
+                editing ? { id: editing.id, ...p } : p,
+              )
+            )
+              setEditing(undefined);
+          }}
+        />
+      )}
+    </>
+  );
+}
+function PlaceEditor({
+  place,
+  close,
+  save,
+}: {
+  place: Place | null;
+  close: () => void;
+  save: (p: Record<string, unknown>) => Promise<void>;
+}) {
+  const [name, setName] = useState(place?.name || ""),
+    [category, setCategory] = useState(place?.category || "Heritage"),
+    [zone, setZone] = useState(place?.zone || "Patan Core"),
+    [capacity, setCapacity] = useState(place?.capacity || 500);
+  return (
+    <Drawer title={place ? "Edit place" : "Add place"} onClose={close}>
+      <div className="mc-form">
+        <label>
+          Place name
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          Category
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option>Heritage</option>
+            <option>Spiritual</option>
+            <option>Market</option>
+            <option>Craft</option>
+            <option>Park</option>
+          </select>
+        </label>
+        <label>
+          Zone
+          <input value={zone} onChange={(e) => setZone(e.target.value)} />
+        </label>
+        <label>
+          Capacity
+          <input
+            type="number"
+            value={capacity}
+            onChange={(e) => setCapacity(Number(e.target.value))}
+          />
+        </label>
+        <button
+          className="mc-primary"
+          disabled={!name.trim()}
+          onClick={() => save({ name, category, zone, capacity })}
+        >
+          <Check />
+          Save
+        </button>
+      </div>
+    </Drawer>
+  );
+}
+function ExperiencesPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [q, setQ] = useState(""),
+    [editing, setEditing] = useState<Experience | null | undefined>();
+  return (
+    <>
+      <Toolbar q={q} setQ={setQ}>
+        <button className="mc-primary" onClick={() => setEditing(null)}>
+          <Plus />
+          Add experience
+        </button>
+      </Toolbar>
+      <div className="mc-cards-list">
+        {state.experiences
+          .filter((x) => x.title.toLowerCase().includes(q.toLowerCase()))
+          .map((x) => (
+            <article className="mc-experience-row" key={x.id}>
+              <div className="mc-experience-thumb">
+                <BookOpen />
+              </div>
+              <div>
+                <small>{x.category}</small>
+                <h3>{x.title}</h3>
+                <p>
+                  {money(x.price)} · {x.capacity} guests
+                </p>
+              </div>
+              <Badge
+                tone={
+                  x.status === "Published"
+                    ? "verified"
+                    : x.status === "Pending"
+                      ? "moderate"
+                      : "muted"
+                }
+              >
+                {x.status}
+              </Badge>
+              <div className="mc-row-actions">
+                <button onClick={() => setEditing(x)}>
+                  <Edit3 />
+                </button>
+                {x.status !== "Published" && (
+                  <button
+                    title="Approve"
+                    onClick={() =>
+                      act("experience.status", {
+                        id: x.id,
+                        status: "Published",
+                      })
+                    }
+                  >
+                    <Check />
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    act("experience.status", {
+                      id: x.id,
+                      status: x.status === "Paused" ? "Published" : "Paused",
+                    })
+                  }
+                >
+                  <MoreHorizontal />
+                </button>
+              </div>
+            </article>
+          ))}
+      </div>
+      {editing !== undefined && (
+        <ExperienceEditor
+          item={editing}
+          operators={state.operators}
+          operatorMode={false}
+          close={() => setEditing(undefined)}
+          save={async (p) => {
+            if (
+              await act(
+                editing ? "experience.update" : "experience.create",
+                editing ? { id: editing.id, ...p } : p,
+              )
+            )
+              setEditing(undefined);
+          }}
+        />
+      )}
+    </>
+  );
+}
+function ExperienceEditor({
+  item,
+  operators,
+  operatorMode,
+  close,
+  save,
+}: {
+  item: Experience | null;
+  operators: Operator[];
+  operatorMode: boolean;
+  close: () => void;
+  save: (p: Record<string, unknown>) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(item?.title || ""),
+    [category, setCategory] = useState(item?.category || "Culture"),
+    [price, setPrice] = useState(item?.price || 800),
+    [capacity, setCapacity] = useState(item?.capacity || 8),
+    [operatorId, setOperatorId] = useState(
+      item?.operatorId || operators[0]?.id || "",
+    );
+  return (
+    <Drawer title={item ? "Edit experience" : "Add experience"} onClose={close}>
+      <div className="mc-form">
+        <label>
+          Title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
+          Category
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option>Craft</option>
+            <option>Food</option>
+            <option>Culture</option>
+            <option>Art</option>
+            <option>Spiritual</option>
+          </select>
+        </label>
+        <label>
+          Price
+          <input
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          Capacity
+          <input
+            type="number"
+            value={capacity}
+            onChange={(e) => setCapacity(Number(e.target.value))}
+          />
+        </label>
+        {!operatorMode && !item && (
+          <label>
+            Operator
+            <select
+              value={operatorId}
+              onChange={(e) => setOperatorId(e.target.value)}
+            >
+              {operators.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.business}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button
+          className="mc-primary"
+          disabled={!title.trim()}
+          onClick={() => save({ title, category, price, capacity, operatorId })}
+        >
+          <Check />
+          Save experience
+        </button>
+      </div>
+    </Drawer>
+  );
+}
+function BookingsPage({
+  state,
+  act,
+  admin = false,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+  admin?: boolean;
+}) {
+  const [selected, setSelected] = useState<Booking | null>(null);
+  return (
+    <>
+      <div className="mc-table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Booking</th>
+              <th>Guest</th>
+              <th>Experience</th>
+              <th>Date & time</th>
+              <th>Value</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {state.bookings.map((b) => (
+              <tr key={b.id}>
+                <td>{b.id}</td>
+                <td>{b.guest}</td>
+                <td>
+                  {b.experienceTitle ||
+                    state.experiences.find((e) => e.id === b.experienceId)
+                      ?.title}
+                </td>
+                <td>
+                  {b.date}
+                  <small>{b.time}</small>
+                </td>
+                <td>{money(b.amount)}</td>
+                <td>{b.status}</td>
+                <td>
+                  <button className="mc-icon" onClick={() => setSelected(b)}>
+                    <Eye />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {selected && (
+        <Drawer title={selected.id} onClose={() => setSelected(null)}>
+          <div className="mc-form">
+            <strong>{selected.guest}</strong>
+            <p>{selected.experienceTitle}</p>
+            {!admin && selected.status === "Confirmed" && (
+              <>
+                <button
+                  className="mc-primary"
+                  onClick={async () => {
+                    await act("booking.status", {
+                      id: selected.id,
+                      status: "Checked In",
+                    });
+                    setSelected(null);
+                  }}
+                >
+                  Check in guest
+                </button>
+                <button
+                  className="mc-secondary"
+                  onClick={async () => {
+                    await act("booking.status", {
+                      id: selected.id,
+                      status: "No Show",
+                    });
+                    setSelected(null);
+                  }}
+                >
+                  Mark no-show
+                </button>
+              </>
+            )}
+            {admin && !["Cancelled", "Refunded"].includes(selected.status) && (
+              <button
+                className="mc-secondary danger-text"
+                onClick={async () => {
+                  await act("booking.status", {
+                    id: selected.id,
+                    status: "Cancelled",
+                  });
+                  setSelected(null);
+                }}
+              >
+                Cancel and restore seats
+              </button>
+            )}
+            {admin && selected.status === "Cancelled" && (
+              <button
+                className="mc-secondary"
+                onClick={async () => {
+                  await act("booking.status", {
+                    id: selected.id,
+                    status: "Refunded",
+                  });
+                  setSelected(null);
+                }}
+              >
+                Mark refunded
+              </button>
+            )}
+          </div>
+        </Drawer>
+      )}
+    </>
+  );
+}
+function OperatorsPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  return (
+    <div className="mc-operator-grid">
+      {state.operators.map((o) => (
+        <article className="mc-operator-card" key={o.id}>
+          <header>
+            <span className="mc-avatar">{o.name[0]}</span>
+            <div>
+              <h3>{o.business}</h3>
+              <p>
+                {o.name} · {o.email}
+              </p>
+            </div>
+            <Badge tone={o.status === "Verified" ? "verified" : "moderate"}>
+              {o.status}
+            </Badge>
+          </header>
+          <div className="mc-operator-metrics">
+            <span>
+              <b>{o.experiences}</b>Experiences
+            </span>
+            <span>
+              <b>{o.rating}</b>Rating
+            </span>
+            <span>
+              <b>{money(o.revenue)}</b>Revenue
+            </span>
+          </div>
+          <button
+            className="mc-secondary"
+            onClick={() =>
+              act("operator.status", {
+                id: o.id,
+                status: o.status === "Suspended" ? "Verified" : "Suspended",
+              })
+            }
+          >
+            {o.status === "Suspended" ? "Restore" : "Suspend"}
+          </button>
+        </article>
+      ))}
+    </div>
+  );
+}
+function CrowdPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [selected, setSelected] = useState<CrowdSite>(state.crowdSites[0]);
+  useEffect(() => {
+    const fresh = state.crowdSites.find((s) => s.id === selected.id);
+    if (fresh) setSelected(fresh);
+  }, [state]);
+  const color = (l: string) =>
+    l === "Low"
+      ? "#2e9f5b"
+      : l === "Moderate"
+        ? "#dfa21d"
+        : l === "High"
+          ? "#d9514e"
+          : "#25292d";
+  return (
+    <div className="mc-crowd-layout">
+      <section className="mc-card mc-crowd-map">
+        <MapContainer
+          center={[27.6737, 85.3245]}
+          zoom={16}
+          className="mc-leaflet"
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {state.crowdSites.map((s) => (
+            <CircleMarker
+              key={s.id}
+              center={[s.lat, s.lng]}
+              radius={s.id === selected.id ? 13 : 10}
+              eventHandlers={{ click: () => setSelected(s) }}
+              pathOptions={{
+                color: "#fff",
+                fillColor: color(s.level),
+                fillOpacity: 1,
+                weight: 3,
+              }}
+            >
+              <Popup>
+                {s.name} · {s.level}
+              </Popup>
+            </CircleMarker>
+          ))}
+        </MapContainer>
+      </section>
+      <aside className="mc-card mc-crowd-inspector">
+        <Badge tone={crowdClass(selected.level)}>{selected.level}</Badge>
+        <h2>{selected.name}</h2>
+        <p>{selected.source || "Demo estimate"}</p>
+        <div className="mc-inspector-grid">
+          <Stat
+            icon={<Activity />}
+            value={String(selected.score)}
+            label="Crowd score"
+          />
+          <Stat icon={<Clock />} value={selected.wait} label="Estimated wait" />
+        </div>
+        <h3>Set crowd level</h3>
+        <div className="mc-level-buttons">
+          {["Low", "Moderate", "High", "Critical"].map((l) => (
+            <button
+              key={l}
+              className={`${crowdClass(l)} ${selected.level === l ? "selected" : ""}`}
+              onClick={() => act("crowd.site", { id: selected.id, level: l })}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="mc-info">
+          <ShieldCheck />
+          <div>
+            <strong>Privacy-aware prototype</strong>
+            <p>No face recognition is required for the product concept.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+function AnalyticsPage({ state }: { state: State }) {
+  const [range, setRange] = useState("7 days");
+  const revenue = state.bookings
+    .filter((x) => !["Cancelled", "Refunded"].includes(x.status))
+    .reduce((s, b) => s + b.amount, 0);
+  return (
+    <>
+      <div className="mc-demo-banner">
+        <ShieldCheck />
+        <div>
+          <strong>DEMO ANALYTICS</strong>
+          <span>
+            Booking value uses shared prototype records. Funnel and
+            alternative-acceptance metrics below are illustrative until event
+            tracking is connected.
+          </span>
+        </div>
+      </div>
+      <div className="mc-analytics-toolbar">
+        <div className="mc-segment">
+          {["7 days", "30 days", "90 days"].map((r) => (
+            <button
+              key={r}
+              className={range === r ? "active" : ""}
+              onClick={() => setRange(r)}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        <button
+          className="mc-secondary"
+          onClick={() =>
+            download("yatralink-analytics.csv", [
+              ["Metric", "Value"],
+              ["Bookings", String(state.bookings.length)],
+              ["Booking value", String(revenue)],
+            ])
+          }
+        >
+          <ArrowDownToLine />
+          Export CSV
+        </button>
+      </div>
+      <div className="mc-stats">
+        <Stat
+          icon={<TicketCheck />}
+          value={String(state.bookings.length)}
+          label="Shared bookings"
+        />
+        <Stat
+          icon={<CircleDollarSign />}
+          value={money(revenue)}
+          label="Booking value"
+        />
+        <Stat
+          icon={<BookOpen />}
+          value={String(state.experiences.length)}
+          label="Inventory"
+        />
+        <Stat
+          icon={<Store />}
+          value={String(
+            state.operators.filter((o) => o.status === "Verified").length,
+          )}
+          label="Verified operators"
+        />
+      </div>
+      <div className="mc-dashboard-grid">
+        <section className="mc-card">
+          <h2>Illustrative booking funnel</h2>
+          <div className="mc-funnel">
+            <span>
+              <b>9,840</b>Place views
+            </span>
+            <span>
+              <b>3,420</b>Experience views
+            </span>
+            <span>
+              <b>812</b>Booking starts
+            </span>
+            <span>
+              <b>312</b>Completed
+            </span>
+          </div>
+        </section>
+        <section className="mc-card">
+          <h2>Illustrative redistribution</h2>
+          <div className="mc-big-metric">
+            <strong>38%</strong>
+            <span>demo alternative acceptance</span>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+function OperatorRouter({
+  view,
+  state,
+  operator,
+  act,
+  nav,
+}: {
+  view: OperatorView;
+  state: State;
+  operator: Operator;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+  nav: (v: OperatorView) => void;
+}) {
+  if (view === "experiences")
+    return <OperatorExperiences state={state} operator={operator} act={act} />;
+  if (view === "bookings") return <BookingsPage state={state} act={act} />;
+  if (view === "calendar") return <CalendarPage state={state} act={act} />;
+  if (view === "earnings") return <EarningsPage state={state} />;
+  if (view === "reviews") return <ReviewsPage state={state} act={act} />;
+  return <OperatorOverview state={state} operator={operator} nav={nav} />;
+}
+function OperatorOverview({
+  state,
+  operator,
+  nav,
+}: {
+  state: State;
+  operator: Operator;
+  nav: (v: OperatorView) => void;
+}) {
+  const today = state.bookings.filter((x) => x.date === kathmanduDate());
+  return (
+    <>
+      <div className="mc-stats">
+        <Stat
+          icon={<TicketCheck />}
+          value={String(today.length)}
+          label="Bookings today"
+        />
+        <Stat
+          icon={<CircleDollarSign />}
+          value={money(today.reduce((s, b) => s + b.amount, 0))}
+          label="Revenue today"
+        />
+        <Stat
+          icon={<Users />}
+          value={String(today.reduce((s, b) => s + b.guests, 0))}
+          label="Guests today"
+        />
+        <Stat
+          icon={<Star />}
+          value={String(operator?.rating || 0)}
+          label="Guest rating"
+        />
+      </div>
+      <section className="mc-card">
+        <div className="mc-card__head">
+          <div>
+            <small>NEPAL LOCAL DATE · {kathmanduDate()}</small>
+            <h2>Guest schedule</h2>
+          </div>
+          <button onClick={() => nav("bookings")}>
+            All bookings <ChevronRight />
+          </button>
+        </div>
+        {today.length ? (
+          today.map((b) => (
+            <div className="mc-guest-line" key={b.id}>
+              <time>{b.time}</time>
+              <span className="mc-avatar small">{b.guest[0]}</span>
+              <div>
+                <strong>{b.guest}</strong>
+                <small>
+                  {b.guests} guests · {b.id}
+                </small>
+              </div>
+              <Badge tone="verified">{b.status}</Badge>
+            </div>
+          ))
+        ) : (
+          <p>No bookings on the current Nepal date.</p>
+        )}
+      </section>
+    </>
+  );
+}
+function OperatorExperiences({
+  state,
+  operator,
+  act,
+}: {
+  state: State;
+  operator: Operator;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState<Experience | null | undefined>();
+  return (
+    <>
+      <div className="mc-toolbar no-search">
+        <span>{state.experiences.length} experiences</span>
+        <button className="mc-primary" onClick={() => setEditing(null)}>
+          <Plus />
+          Create experience
+        </button>
+      </div>
+      <div className="mc-operator-experiences">
+        {state.experiences.map((x) => (
+          <article key={x.id}>
+            <div className="mc-experience-cover">
+              <Store />
+            </div>
+            <div>
+              <Badge tone={x.status === "Published" ? "verified" : "moderate"}>
+                {x.status}
+              </Badge>
+              <h2>{x.title}</h2>
+              <p>
+                {x.category} · {money(x.price)} · {x.capacity} guests
+              </p>
+              <footer>
+                <button className="mc-secondary" onClick={() => setEditing(x)}>
+                  <Edit3 />
+                  Edit
+                </button>
+                {x.status === "Published" && (
+                  <button
+                    className="mc-secondary"
+                    onClick={() =>
+                      act("experience.status", { id: x.id, status: "Paused" })
+                    }
+                  >
+                    Pause
+                  </button>
+                )}
+                {x.status === "Paused" && (
+                  <button
+                    className="mc-secondary"
+                    onClick={() =>
+                      act("experience.status", { id: x.id, status: "Pending" })
+                    }
+                  >
+                    Request re-approval
+                  </button>
+                )}
+              </footer>
+            </div>
+          </article>
+        ))}
+      </div>
+      {editing !== undefined && (
+        <ExperienceEditor
+          item={editing}
+          operators={[operator]}
+          operatorMode
+          close={() => setEditing(undefined)}
+          save={async (p) => {
+            if (
+              await act(
+                editing ? "experience.update" : "experience.create",
+                editing ? { id: editing.id, ...p } : p,
+              )
+            )
+              setEditing(undefined);
+          }}
+        />
+      )}
+    </>
+  );
+}
+function CalendarPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [exp, setExp] = useState(state.experiences[0]?.id || ""),
+    [time, setTime] = useState("5:00 PM"),
+    [capacity, setCapacity] = useState(8);
+  return (
+    <>
+      <div className="mc-card mc-slot-create">
+        <h2>Add availability</h2>
+        <div>
+          <select value={exp} onChange={(e) => setExp(e.target.value)}>
+            {state.experiences.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.title}
+              </option>
+            ))}
+          </select>
+          <input
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            placeholder="5:00 PM"
+          />
+          <input
+            type="number"
+            value={capacity}
+            onChange={(e) => setCapacity(Number(e.target.value))}
+          />
+          <button
+            className="mc-primary"
+            onClick={() =>
+              act("availability.create", {
+                experienceId: exp,
+                day: "Today",
+                time,
+                capacity,
+              })
+            }
+          >
+            <Plus />
+            Add slot
+          </button>
+        </div>
+      </div>
+      <div className="mc-calendar">
+        <section className="mc-card">
+          <h2>Today</h2>
+          <div className="mc-slot-grid">
+            {state.slots
+              .filter((x) => x.day === "Today")
+              .map((s) => (
+                <button
+                  key={s.id}
+                  className={s.available ? "available" : "closed"}
+                  onClick={() =>
+                    act("availability.toggle", {
+                      id: s.id,
+                      available: !s.available,
+                    })
+                  }
+                >
+                  <Clock />
+                  <strong>{s.time}</strong>
+                  <span>
+                    {s.available
+                      ? `${s.capacity - s.booked} seats open`
+                      : "Closed"}
+                  </span>
+                </button>
+              ))}
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+function EarningsPage({ state }: { state: State }) {
+  const active = state.bookings.filter(
+      (x) => !["Cancelled", "Refunded"].includes(x.status),
+    ),
+    gross = active.reduce((s, b) => s + b.amount, 0);
+  return (
+    <>
+      <div className="mc-stats">
+        <Stat
+          icon={<CircleDollarSign />}
+          value={money(gross)}
+          label="Gross booking value"
+        />
+        <Stat
+          icon={<TrendingUp />}
+          value={money(gross * 0.88)}
+          label="Estimated payout"
+        />
+        <Stat
+          icon={<TicketCheck />}
+          value={String(active.length)}
+          label="Active bookings"
+        />
+        <Stat icon={<Star />} value="4.8" label="Average rating" />
+      </div>
+      <button
+        className="mc-secondary"
+        onClick={() =>
+          download("operator-statement.csv", [
+            ["Booking", "Guest", "Amount", "Status"],
+            ...active.map((b) => [b.id, b.guest, String(b.amount), b.status]),
+          ])
+        }
+      >
+        <ArrowDownToLine />
+        Download statement
+      </button>
+    </>
+  );
+}
+function ReviewsPage({
+  state,
+  act,
+}: {
+  state: State;
+  act: (a: string, p?: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  return (
+    <div className="mc-review-list">
+      {state.reviews.map((r) => (
+        <article className="mc-card" key={r.id}>
+          <header>
+            <span className="mc-avatar">{r.guest[0]}</span>
+            <strong>
+              {r.guest} · {r.rating}/5
+            </strong>
+          </header>
+          <p>“{r.text}”</p>
+          {r.reply ? (
+            <div className="mc-reply">
+              <MessageSquare />
+              <p>{r.reply}</p>
+            </div>
+          ) : (
+            <div className="mc-reply-form">
+              <textarea
+                value={drafts[r.id] || ""}
+                onChange={(e) =>
+                  setDrafts({ ...drafts, [r.id]: e.target.value })
+                }
+              />
+              <button
+                className="mc-primary"
+                disabled={!drafts[r.id]?.trim()}
+                onClick={() =>
+                  act("review.reply", { id: r.id, reply: drafts[r.id] })
+                }
+              >
+                Reply
+              </button>
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+function Toolbar({
+  q,
+  setQ,
+  children,
+}: {
+  q: string;
+  setQ: (s: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="mc-toolbar">
+      <label>
+        <Search />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search…"
+        />
+      </label>
+      <div>{children}</div>
+    </div>
+  );
+}

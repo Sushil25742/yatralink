@@ -27,9 +27,14 @@ export default function HomeExplorePage() {
           </div>
         }
         trailing={
-          <button className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-[var(--color-brand-secondary)]/5 text-[var(--color-brand-secondary)]">
-            <Bell className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-[var(--color-brand-secondary)]/5 text-[var(--color-brand-secondary)]">
+              <Bell className="h-5 w-5" />
+            </button>
+            <a href="/auth" className="text-sm font-medium bg-[var(--color-brand-primary)] text-white px-4 py-2 rounded-full hover:bg-[var(--color-brand-primary)]/90 transition-colors">
+              Portal Access
+            </a>
+          </div>
         }
       />
 

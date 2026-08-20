@@ -1,0 +1,1655 @@
+import { useEffect, useRef, useState } from "react";
+import { api, ws } from "@/lib/platform";
+import {
+  MapContainer,
+  TileLayer,
+  CircleMarker,
+  Polyline,
+  Popup,
+} from "react-leaflet";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bell,
+  Bookmark,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  Clock,
+  Compass,
+  Filter,
+  Gift,
+  Grid3X3,
+  Heart,
+  HelpCircle,
+  Home,
+  Landmark,
+  Leaf,
+  LogOut,
+  MapPinned,
+  MapPin,
+  Minus,
+  Navigation,
+  Palette,
+  Plus,
+  Route,
+  Search,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Store,
+  User,
+  Users,
+  Utensils,
+  X,
+} from "lucide-react";
+import "leaflet/dist/leaflet.css";
+import "./yatralink.css";
+import { PAGE_LIBRARY, type ProductPage } from "./pageLibrary";
+import ProductScreenRenderer from "./ProductScreenRenderer";
+type CrowdLevel = "low" | "moderate" | "high" | "critical";
+type Screen =
+  | "home"
+  | "search"
+  | "map"
+  | "quiet"
+  | "alert"
+  | "filters"
+  | "plan"
+  | "itinerary"
+  | "place"
+  | "experiences"
+  | "experience"
+  | "booking"
+  | "confirmed"
+  | "bookings"
+  | "points"
+  | "impact"
+  | "profile"
+  | "privacy"
+  | "notifications";
+type Portal = "traveler" | "productMap" | "catalog";
+type Booking = {
+  id: string;
+  experienceTitle?: string;
+  date?: string;
+  time: string;
+  guests: number;
+  amount: number;
+  status: string;
+};
+type Experience = {
+  id: string;
+  title: string;
+  price: number;
+  capacity?: number;
+  rating: string;
+  category: string;
+  image: string;
+  subtitle: string;
+  duration: string;
+};
+type Place = {
+  id: string;
+  name: string;
+  category: string;
+  zone: string;
+  status: string;
+  crowd: string;
+  capacity: number;
+  visits: number;
+  lat: number;
+  lng: number;
+};
+type Crowd = {
+  id: string;
+  name: string;
+  level: string;
+  score: number;
+  wait: string;
+  lat: number;
+  lng: number;
+  source: string;
+};
+type Slot = {
+  id: string;
+  experienceId: string;
+  operatorId: string;
+  day: string;
+  time: string;
+  available: boolean;
+  capacity: number;
+  booked: number;
+};
+type PublicMap = {
+  nodes: { id: string; name: string; type: string; lat: number; lng: number }[];
+  routes: {
+    id: string;
+    name: string;
+    node_ids: string[];
+    published: boolean;
+  }[];
+};
+type SettingsState = {
+  name: string;
+  language: string;
+  crowd_alerts: boolean;
+  location_sharing: boolean;
+  accessibility: string;
+  travel_pace: string;
+  dark_mode: boolean;
+};
+type TripItem = {
+  time: string;
+  end_time: string;
+  title: string;
+  category: string;
+  location: string;
+  duration_minutes: number;
+  estimated_cost: number;
+  crowd_strategy: string;
+  reason: string;
+  transport_to_next: string;
+  notes: string;
+};
+type TripDay = {
+  day: number;
+  date: string;
+  theme: string;
+  estimated_cost: number;
+  items: TripItem[];
+};
+type TripPlan = {
+  title: string;
+  summary: string;
+  destinations: string[];
+  currency: string;
+  total_estimated_cost: number;
+  assumptions: string[];
+  days: TripDay[];
+};
+const images = {
+  heritage:
+    "https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=82",
+  craft:
+    "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=900&q=82",
+  food: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=82",
+  city: "https://images.unsplash.com/photo-1514222134-b57cbb8ce073?auto=format&fit=crop&w=900&q=82",
+};
+const imageFor = (c: string) =>
+  c === "Craft"
+    ? images.craft
+    : c === "Food"
+      ? images.food
+      : c === "Art"
+        ? images.city
+        : images.heritage;
+const crowdInfo: Record<
+  CrowdLevel,
+  { label: string; score: number; wait: string }
+> = {
+  low: { label: "Low", score: 28, wait: "Comfortable now" },
+  moderate: { label: "Moderate", score: 52, wait: "15–25 min" },
+  high: { label: "High", score: 78, wait: "40–50 min" },
+  critical: { label: "Critical", score: 92, wait: "Avoid for now" },
+};
+const norm = (v: string): CrowdLevel =>
+  ["low", "high", "critical"].includes(v.toLowerCase())
+    ? (v.toLowerCase() as CrowdLevel)
+    : "moderate";
+const hav = (
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+) => {
+  const r = 6371,
+    d1 = ((b.lat - a.lat) * Math.PI) / 180,
+    d2 = ((b.lng - a.lng) * Math.PI) / 180,
+    q =
+      Math.sin(d1 / 2) ** 2 +
+      Math.cos((a.lat * Math.PI) / 180) *
+        Math.cos((b.lat * Math.PI) / 180) *
+        Math.sin(d2 / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(q));
+};
+const iso = (off: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + off);
+  return d.toISOString().slice(0, 10);
+};
+function Logo() {
+  return (
+    <div className="brand">
+      <span>
+        <MapPinned />
+      </span>
+      <strong>
+        Yatra<b>Link</b>
+      </strong>
+    </div>
+  );
+}
+function Pill({ level }: { level: CrowdLevel }) {
+  return (
+    <span className={`crowd-pill crowd-pill--${level}`}>
+      <i />
+      {crowdInfo[level].label}
+    </span>
+  );
+}
+function Primary({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button className="btn primary" onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+function Secondary({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button className="btn secondary" onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+function DynamicMap({
+  places,
+  crowds,
+  routes,
+  selected,
+  onSelect,
+}: {
+  places: Place[];
+  crowds: Crowd[];
+  routes: PublicMap;
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const colors: Record<CrowdLevel, string> = {
+    low: "#2e9f5b",
+    moderate: "#dfa21d",
+    high: "#d9514e",
+    critical: "#25292d",
+  };
+  const pts = (ids: string[]) =>
+    ids
+      .map((id) => routes.nodes.find((n) => n.id === id))
+      .filter(Boolean)
+      .map((n) => [n!.lat, n!.lng] as [number, number]);
+  return (
+    <MapContainer center={[27.6737, 85.3245]} zoom={15} className="map-canvas">
+      <TileLayer
+        attribution="&copy; OpenStreetMap contributors"
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {routes.routes.map((r) => {
+        const p = pts(r.node_ids);
+        return p.length > 1 ? (
+          <Polyline
+            key={r.id}
+            positions={p}
+            pathOptions={{ color: "#0c716f", weight: 5, dashArray: "8 7" }}
+          />
+        ) : null;
+      })}
+      {places.map((p) => {
+        const c = crowds.find((x) => x.id === p.id),
+          l = norm(c?.level || p.crowd);
+        return (
+          <CircleMarker
+            key={p.id}
+            center={[p.lat, p.lng]}
+            radius={selected === p.id ? 12 : 9}
+            eventHandlers={{ click: () => onSelect(p.id) }}
+            pathOptions={{
+              color: "#fff",
+              fillColor: colors[l],
+              fillOpacity: 1,
+              weight: 3,
+            }}
+          >
+            <Popup>
+              <strong>{p.name}</strong>
+              <br />
+              {crowdInfo[l].label} · {c?.wait || crowdInfo[l].wait}
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+    </MapContainer>
+  );
+}
+export default function YatraLink({
+  sessionId,
+  user,
+  onSettings,
+  onLogout,
+}: {
+  sessionId: string;
+  user: { name: string; email: string; role: string };
+  onSettings: () => void;
+  onLogout: () => void;
+}) {
+  const [portal, setPortal] = useState<Portal>("traveler"),
+    [screen, setScreen] = useState<Screen>("home"),
+    [places, setPlaces] = useState<Place[]>([]),
+    [crowds, setCrowds] = useState<Crowd[]>([]),
+    [slots, setSlots] = useState<Slot[]>([]),
+    [experiences, setExperiences] = useState<Experience[]>([]),
+    [bookings, setBookings] = useState<Booking[]>([]),
+    [points, setPoints] = useState(650),
+    [publicMap, setPublicMap] = useState<PublicMap>({ nodes: [], routes: [] }),
+    [settings, setSettings] = useState<SettingsState | null>(null),
+    [selectedPlace, setSelectedPlace] = useState("place-patan"),
+    [selectedExp, setSelectedExp] = useState<Experience | null>(null),
+    [time, setTime] = useState(""),
+    [guests, setGuests] = useState(2),
+    [error, setError] = useState(""),
+    [q, setQ] = useState(""),
+    [filters, setFilters] = useState({
+      crowd: "All",
+      interest: "All",
+      budget: 5000,
+    }),
+    [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null),
+    [geoLabel, setGeoLabel] = useState("Patan pilot center"),
+    [quietAdded, setQuietAdded] = useState<string[]>([]),
+    [placeTab, setPlaceTab] = useState("History"),
+    [category, setCategory] = useState("All"),
+    [catalogPage, setCatalogPage] = useState<ProductPage | null>(null),
+    [rewardMsg, setRewardMsg] = useState("");
+  const [planner, setPlanner] = useState({
+    destinations: "Patan, Bhaktapur, Kathmandu",
+    startDate: iso(1),
+    endDate: iso(3),
+    dailyStart: "09:00",
+    dailyEnd: "18:00",
+    budget: 12000,
+    interests: "Heritage, local food, crafts",
+    pace: "Balanced",
+    transport: "Walk + taxi",
+    crowdPreference: "Avoid peak crowds",
+    mustVisit: "Patan Durbar Square",
+    notes: "Prefer local experiences.",
+  });
+  const [aiPlan, setAiPlan] = useState<TripPlan | null>(null),
+    [aiLoading, setAiLoading] = useState(false),
+    [aiError, setAiError] = useState("");
+  const conn = useRef<ReturnType<typeof ws.connect> | null>(null);
+  const load = () =>
+    api.get("/api/state", { session_id: sessionId }).then(({ data }) => {
+      setBookings(data.bookings || []);
+      setPoints(data.points || 650);
+      setPlaces(data.places || []);
+      setCrowds(data.crowdSites || []);
+      setSlots(data.slots || []);
+      setPublicMap(data.publicMap || { nodes: [], routes: [] });
+      const ex = (data.experiences || []).map((e: any) => ({
+        id: e.id,
+        title: e.title,
+        price: Number(e.price),
+        capacity: e.capacity,
+        rating: String(e.rating || "New"),
+        category: e.category,
+        image: imageFor(e.category),
+        subtitle:
+          e.category === "Craft"
+            ? "Learn from a local maker"
+            : e.category === "Food"
+              ? "Taste a local kitchen experience"
+              : "Explore living heritage with a local host",
+        duration:
+          e.category === "Craft"
+            ? "45 min"
+            : e.category === "Food"
+              ? "60 min"
+              : "90 min",
+      }));
+      setExperiences(ex);
+      setSelectedExp(
+        (old) => ex.find((x: Experience) => x.id === old?.id) || ex[0] || null,
+      );
+    });
+  useEffect(() => {
+    load();
+    api
+      .get("/api/user-settings", { session_id: sessionId })
+      .then(({ data }) => {
+        setSettings(data.settings);
+        setPlanner((p) => ({
+          ...p,
+          pace: data.settings.travel_pace || p.pace,
+        }));
+      });
+    const c = ws.connect();
+    conn.current = c;
+    c.onMessage((m) => {
+      if (
+        m?.type === "entity.update" &&
+        ["inventory", "crowd"].includes(m.payload?.entity_type)
+      )
+        load();
+    });
+    c.ready.then(() => {
+      if (c.connectionId) {
+        api.post("/api/subscriptions", {
+          entity_type: "inventory",
+          entity_id: "public",
+          connection_id: c.connectionId,
+        });
+        api.post("/api/subscriptions", {
+          entity_type: "crowd",
+          entity_id: "patan-durbar",
+          connection_id: c.connectionId,
+        });
+      }
+    });
+    return () => c.disconnect();
+  }, [sessionId]);
+  useEffect(() => {
+    const sync = () => {
+      const f = PAGE_LIBRARY.find(
+        (p) =>
+          p.route === location.hash || `#/product/${p.id}` === location.hash,
+      );
+      if (f?.role === "Traveler") {
+        setCatalogPage(f);
+        setPortal("catalog");
+      } else if (location.hash === "#/screens") setPortal("productMap");
+    };
+    sync();
+    addEventListener("hashchange", sync);
+    return () => removeEventListener("hashchange", sync);
+  }, []);
+  const go = (s: Screen) => {
+    setPortal("traveler");
+    setScreen(s);
+    scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const currentPlace = places.find((p) => p.id === selectedPlace) || places[0];
+  const currentCrowd = crowds.find((c) => c.id === currentPlace?.id);
+  const currentLevel = norm(
+    currentCrowd?.level || currentPlace?.crowd || "Moderate",
+  );
+  const openCatalog = (p: ProductPage) => {
+    setCatalogPage(p);
+    setPortal("catalog");
+    location.hash = p.route;
+  };
+  const confirmBooking = async () => {
+    if (!selectedExp || !time)
+      return setError("Choose an available time before booking.");
+    setError("");
+    try {
+      const { data } = await api.post("/api/bookings", {
+        session_id: sessionId,
+        experienceId: selectedExp.id,
+        time,
+        guests,
+      });
+      setBookings(data.bookings);
+      setPoints(data.points);
+      setSlots(data.slots);
+      go("confirmed");
+    } catch (err: any) {
+      setError(err?.message || "That time is no longer available.");
+    }
+  };
+  const savePrivacy = async (v: boolean) => {
+    if (!settings) return;
+    const next = { ...settings, location_sharing: v };
+    setSettings(next);
+    await api.put("/api/user-settings", {
+      session_id: sessionId,
+      settings: next,
+    });
+  };
+  const redeem = async (cost: number, label: string) => {
+    try {
+      const { data } = await api.post("/api/rewards/redeem", {
+        session_id: sessionId,
+        cost,
+        label,
+      });
+      setPoints(data.points);
+      setRewardMsg(`${label} redeemed. This redemption persists.`);
+    } catch (err: any) {
+      setRewardMsg(err?.message || "Unable to redeem.");
+    }
+  };
+  const generate = async () => {
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const { data } = await api.post("/api/ai-plan", {
+        session_id: sessionId,
+        ...planner,
+      });
+      setAiPlan(data.plan);
+      go("itinerary");
+    } catch (err: any) {
+      setAiError(err?.message || "AI planner is temporarily unavailable.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+  function Frame({ children }: { children: React.ReactNode }) {
+    const show = ["home", "map", "place"].includes(screen);
+    return (
+      <div className="mobile-shell">
+        <div className="mobile-content">{children}</div>
+        {show && (
+          <button className="quiet-fab" onClick={() => go("quiet")}>
+            <Leaf />
+            Quiet nearby
+          </button>
+        )}
+        <nav className="mobile-nav">
+          {(
+            [
+              ["home", "Home", <Home />],
+              ["map", "Map", <MapPin />],
+              ["plan", "Journey", <Route />],
+              ["bookings", "Bookings", <CalendarDays />],
+              ["profile", "Profile", <User />],
+            ] as [Screen, string, React.ReactNode][]
+          ).map(([s, l, i]) => (
+            <button
+              key={s}
+              className={screen === s ? "active" : ""}
+              onClick={() => go(s)}
+            >
+              {i}
+              <span>{l}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+    );
+  }
+  function Header({
+    title,
+    back = "home",
+    right,
+  }: {
+    title: string;
+    back?: Screen;
+    right?: React.ReactNode;
+  }) {
+    return (
+      <header className="phone-header">
+        <button onClick={() => go(back)}>
+          <ArrowLeft />
+        </button>
+        <strong>{title}</strong>
+        <div>{right}</div>
+      </header>
+    );
+  }
+  function HomeView() {
+    const low = crowds.filter((c) => c.level === "Low").length,
+      mod = crowds.filter((c) => c.level === "Moderate").length,
+      high = crowds.filter((c) =>
+        ["High", "Critical"].includes(c.level),
+      ).length;
+    return (
+      <Frame>
+        <div className="home-page">
+          <header>
+            <Logo />
+            <button onClick={() => go("notifications")}>
+              <Bell />
+            </button>
+          </header>
+          <h1>Namaste, {user.name}! 👋</h1>
+          <p>Explore Patan with crowd-aware timing and local experiences.</p>
+          <button className="search-box" onClick={() => go("search")}>
+            <Search />
+            Search places, experiences...
+          </button>
+          <section>
+            <div className="section-title">
+              <h2>Live Crowd Overview</h2>
+              <button onClick={() => go("map")}>See all</button>
+            </div>
+            <div className="crowd-grid">
+              {[
+                ["Low", low],
+                ["Moderate", mod],
+                ["High", high],
+              ].map(([l, n]) => (
+                <button
+                  key={l}
+                  onClick={() => {
+                    setFilters({ ...filters, crowd: String(l) });
+                    go("search");
+                  }}
+                  className={`crowd-card ${String(l).toLowerCase()}`}
+                >
+                  <Users />
+                  <strong>{l}</strong>
+                  <span>{n} places</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="section-title">
+              <h2>Top Picks in Patan</h2>
+              <button onClick={() => go("quiet")}>Quiet nearby</button>
+            </div>
+            <div className="place-grid">
+              {places.slice(0, 3).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setSelectedPlace(p.id);
+                    go("map");
+                  }}
+                >
+                  <img src={imageFor(p.category)} alt="" />
+                  <strong>{p.name}</strong>
+                  <Pill
+                    level={norm(
+                      crowds.find((c) => c.id === p.id)?.level || p.crowd,
+                    )}
+                  />
+                </button>
+              ))}
+            </div>
+          </section>
+          <section>
+            <div className="section-title">
+              <h2>Local Experiences</h2>
+              <button onClick={() => go("experiences")}>See all</button>
+            </div>
+            <div className="experience-grid">
+              {experiences.slice(0, 3).map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => {
+                    setSelectedExp(e);
+                    go("experience");
+                  }}
+                >
+                  <img src={e.image} alt="" />
+                  <strong>{e.title}</strong>
+                  <span>NPR {e.price}</span>
+                </button>
+              ))}
+            </div>
+            <button className="ai-cta" onClick={() => go("plan")}>
+              <Sparkles />
+              <div>
+                <strong>Plan your trip with AI</strong>
+                <span>Grounded in current YatraLink inventory.</span>
+              </div>
+              <ArrowRight />
+            </button>
+          </section>
+        </div>
+      </Frame>
+    );
+  }
+  function SearchView() {
+    const x = q.toLowerCase();
+    const ps = places.filter(
+      (p) =>
+        (!x || `${p.name} ${p.category}`.toLowerCase().includes(x)) &&
+        (filters.crowd === "All" || p.crowd === filters.crowd) &&
+        (filters.interest === "All" || p.category === filters.interest),
+    );
+    const es = experiences.filter(
+      (e) =>
+        (!x || `${e.title} ${e.category}`.toLowerCase().includes(x)) &&
+        e.price <= filters.budget &&
+        (filters.interest === "All" || e.category === filters.interest),
+    );
+    return (
+      <Frame>
+        <Header title="Search" />
+        <div className="phone-body">
+          <label className="search-input">
+            <Search />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Golden Temple, food, craft…"
+            />
+          </label>
+          <button className="filter-summary" onClick={() => go("filters")}>
+            Filters · {filters.crowd} · NPR ≤ {filters.budget}
+          </button>
+          <h2>Places</h2>
+          {ps.map((p) => (
+            <button
+              className="result-row"
+              key={p.id}
+              onClick={() => {
+                setSelectedPlace(p.id);
+                go("map");
+              }}
+            >
+              <MapPin />
+              <div>
+                <strong>{p.name}</strong>
+                <span>
+                  {p.category} · {p.zone}
+                </span>
+              </div>
+              <Pill level={norm(p.crowd)} />
+              <ChevronRight />
+            </button>
+          ))}
+          <h2>Experiences</h2>
+          {es.map((e) => (
+            <button
+              className="result-row"
+              key={e.id}
+              onClick={() => {
+                setSelectedExp(e);
+                go("experience");
+              }}
+            >
+              <Store />
+              <div>
+                <strong>{e.title}</strong>
+                <span>
+                  {e.category} · NPR {e.price}
+                </span>
+              </div>
+              <ChevronRight />
+            </button>
+          ))}
+        </div>
+      </Frame>
+    );
+  }
+  function FiltersView() {
+    return (
+      <Frame>
+        <Header title="Filters" back="search" right={<X />} />
+        <div className="phone-body">
+          <h3>Crowd Level</h3>
+          <div className="chips">
+            {["All", "Low", "Moderate", "High"].map((x) => (
+              <button
+                className={filters.crowd === x ? "active" : ""}
+                key={x}
+                onClick={() => setFilters({ ...filters, crowd: x })}
+              >
+                {x}
+              </button>
+            ))}
+          </div>
+          <h3>Interest</h3>
+          <div className="chips">
+            {[
+              "All",
+              "Heritage",
+              "Food",
+              "Craft",
+              "Spiritual",
+              "Culture",
+              "Art",
+            ].map((x) => (
+              <button
+                className={filters.interest === x ? "active" : ""}
+                key={x}
+                onClick={() => setFilters({ ...filters, interest: x })}
+              >
+                {x}
+              </button>
+            ))}
+          </div>
+          <label className="range">
+            Budget up to NPR {filters.budget}
+            <input
+              type="range"
+              min="500"
+              max="5000"
+              step="500"
+              value={filters.budget}
+              onChange={(e) =>
+                setFilters({ ...filters, budget: Number(e.target.value) })
+              }
+            />
+          </label>
+          <Primary onClick={() => go("search")}>Apply Filters</Primary>
+        </div>
+      </Frame>
+    );
+  }
+  function MapView() {
+    return (
+      <Frame>
+        <div className="map-page">
+          <div className="map-top">
+            <button onClick={() => go("search")}>
+              <Search />
+              Search places
+            </button>
+          </div>
+          <DynamicMap
+            places={places}
+            crowds={crowds}
+            routes={publicMap}
+            selected={selectedPlace}
+            onSelect={(id) => setSelectedPlace(id)}
+          />
+          <div className="map-sheet">
+            <h2>{currentPlace?.name || "Patan"}</h2>
+            <Pill level={currentLevel} />
+            <p>
+              <b>{currentCrowd?.source || "Demo estimate"}</b> ·{" "}
+              {currentCrowd?.wait || crowdInfo[currentLevel].wait}
+            </p>
+            <Primary onClick={() => go("alert")}>See Alternatives</Primary>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function AlertView() {
+    return (
+      <Frame>
+        <Header title="Crowd Alert" back="map" />
+        <div className="phone-body centered">
+          <Users className="big-icon" />
+          <h1>{currentPlace?.name}</h1>
+          <p>
+            Current pressure is <b>{crowdInfo[currentLevel].label}</b>. Consider
+            a calmer nearby option.
+          </p>
+          {places
+            .filter(
+              (p) =>
+                p.id !== currentPlace?.id &&
+                ["Low", "Moderate"].includes(
+                  crowds.find((c) => c.id === p.id)?.level || p.crowd,
+                ),
+            )
+            .slice(0, 3)
+            .map((p) => (
+              <button
+                className="alternative-row"
+                key={p.id}
+                onClick={() => {
+                  setSelectedPlace(p.id);
+                  go("map");
+                }}
+              >
+                <img src={imageFor(p.category)} alt="" />
+                <div>
+                  <strong>{p.name}</strong>
+                  <Pill
+                    level={norm(
+                      crowds.find((c) => c.id === p.id)?.level || p.crowd,
+                    )}
+                  />
+                </div>
+                <ChevronRight />
+              </button>
+            ))}
+        </div>
+      </Frame>
+    );
+  }
+  function QuietView() {
+    const origin = geo || { lat: 27.6738, lng: 85.3232 };
+    const rows = places
+      .map((p) => {
+        const km = hav(origin, p),
+          c = crowds.find((x) => x.id === p.id);
+        return {
+          ...p,
+          km,
+          level: norm(c?.level || p.crowd),
+          wait: c?.wait || "Estimate unavailable",
+          source: c?.source || "Demo estimate",
+        };
+      })
+      .filter((p) => ["low", "moderate"].includes(p.level))
+      .sort(
+        (a, b) =>
+          (a.level === "low" ? 0 : 1) - (b.level === "low" ? 0 : 1) ||
+          a.km - b.km,
+      );
+    const locate = () =>
+      navigator.geolocation?.getCurrentPosition(
+        (p) => {
+          setGeo({ lat: p.coords.latitude, lng: p.coords.longitude });
+          setGeoLabel("Using your current location");
+        },
+        () => setGeoLabel("Location not shared · Patan pilot center"),
+      );
+    return (
+      <Frame>
+        <Header title="Less Crowded Nearby" />
+        <div className="phone-body">
+          <div className="quiet-intro">
+            <Leaf />
+            <div>
+              <h1>Find calmer places.</h1>
+              <p>Ranked by crowd pressure, then distance.</p>
+              <small>{geoLabel}</small>
+            </div>
+          </div>
+          <button className="location-btn" onClick={locate}>
+            <Navigation />
+            Use my location
+          </button>
+          {rows.map((p) => (
+            <article className="quiet-row" key={p.id}>
+              <img src={imageFor(p.category)} alt="" />
+              <div>
+                <strong>{p.name}</strong>
+                <Pill level={p.level} />
+                <small>
+                  {p.km < 1
+                    ? `${Math.round(p.km * 1000)} m`
+                    : `${p.km.toFixed(1)} km`}{" "}
+                  · {p.wait}
+                </small>
+                <p>{p.source}</p>
+              </div>
+              <div>
+                <button
+                  onClick={() => {
+                    setSelectedPlace(p.id);
+                    go("map");
+                  }}
+                >
+                  Map
+                </button>
+                <button
+                  onClick={() =>
+                    setQuietAdded((x) => (x.includes(p.id) ? x : [...x, p.id]))
+                  }
+                >
+                  {quietAdded.includes(p.id) ? "Added" : "Add to Journey"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Frame>
+    );
+  }
+  function PlaceView() {
+    return (
+      <Frame>
+        <div className="detail-hero">
+          <img
+            src={imageFor(currentPlace?.category || "Heritage")}
+            alt={currentPlace?.name}
+          />
+          <button onClick={() => go("map")}>
+            <ArrowLeft />
+          </button>
+        </div>
+        <div className="phone-body">
+          <h1>{currentPlace?.name}</h1>
+          <Pill level={currentLevel} />
+          <p className="lead">
+            A YatraLink destination record in the Patan pilot. Crowd provenance
+            is shown separately from heritage content.
+          </p>
+          <div className="quick-actions">
+            {[
+              ["History", <Landmark />],
+              ["Photos", <Grid3X3 />],
+              ["Reviews", <Star />],
+              ["Tips", <HelpCircle />],
+            ].map(([l, i]) => (
+              <button
+                className={placeTab === l ? "active" : ""}
+                key={String(l)}
+                onClick={() => setPlaceTab(String(l))}
+              >
+                {i}
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="info-panel">
+            {placeTab === "History"
+              ? "Verified heritage content belongs to the manager content workflow."
+              : placeTab === "Photos"
+                ? "Prototype media gallery and moderation flow."
+                : placeTab === "Reviews"
+                  ? "Place-level aggregation is an extension; experience reviews are live in Operator Studio."
+                  : "Use the crowd signal and Quiet Nearby before deciding when to visit."}
+          </div>
+          <div className="two-actions">
+            <Secondary onClick={() => go("quiet")}>Quiet Nearby</Secondary>
+            <Primary onClick={() => go("map")}>Navigate</Primary>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function ExperiencesView() {
+    return (
+      <Frame>
+        <Header title="Living Heritage" />
+        <div className="phone-body">
+          <div className="chips">
+            {["All", "Craft", "Food", "Culture", "Art"].map((x) => (
+              <button
+                className={category === x ? "active" : ""}
+                onClick={() => setCategory(x)}
+                key={x}
+              >
+                {x}
+              </button>
+            ))}
+          </div>
+          <div className="experience-list">
+            {experiences
+              .filter((e) => category === "All" || e.category === category)
+              .map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => {
+                    setSelectedExp(e);
+                    setTime("");
+                    go("experience");
+                  }}
+                >
+                  <img src={e.image} alt={e.title} />
+                  <div>
+                    <strong>{e.title}</strong>
+                    <span>
+                      {e.category} · NPR {e.price}
+                    </span>
+                    <small>★ {e.rating}</small>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function ExperienceView() {
+    if (!selectedExp) return null;
+    const available = slots.filter(
+      (s) =>
+        s.experienceId === selectedExp.id &&
+        s.day === "Today" &&
+        s.available &&
+        s.booked < s.capacity,
+    );
+    return (
+      <Frame>
+        <div className="detail-hero">
+          <img src={selectedExp.image} alt={selectedExp.title} />
+          <button onClick={() => go("experiences")}>
+            <ArrowLeft />
+          </button>
+        </div>
+        <div className="phone-body">
+          <h1>{selectedExp.title}</h1>
+          <p className="lead">
+            {selectedExp.subtitle}. Bookable slots come directly from the
+            operator availability system.
+          </p>
+          <div className="facts">
+            <span>
+              <Star /> {selectedExp.rating}
+            </span>
+            <span>
+              <Clock /> {selectedExp.duration}
+            </span>
+            <span>
+              <Users /> Capacity {selectedExp.capacity}
+            </span>
+          </div>
+          <h2>Available Today</h2>
+          <div className="slots">
+            {available.map((s) => (
+              <button
+                className={time === s.time ? "active" : ""}
+                key={s.id}
+                onClick={() => setTime(s.time)}
+              >
+                {s.time}
+                <small>{s.capacity - s.booked} left</small>
+              </button>
+            ))}
+          </div>
+          {!available.length && (
+            <div className="form-error">No slots are currently bookable.</div>
+          )}
+          <div className="sticky-buy">
+            <strong>NPR {selectedExp.price} / person</strong>
+            <Primary disabled={!time} onClick={() => go("booking")}>
+              Book Now
+            </Primary>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function BookingView() {
+    if (!selectedExp) return null;
+    return (
+      <Frame>
+        <Header title="Review booking" back="experience" />
+        <div className="phone-body">
+          <div className="booking-product">
+            <img src={selectedExp.image} alt="" />
+            <div>
+              <strong>{selectedExp.title}</strong>
+              <span>{time}</span>
+            </div>
+          </div>
+          <div className="stepper">
+            <span>Guests</span>
+            <div>
+              <button onClick={() => setGuests(Math.max(1, guests - 1))}>
+                <Minus />
+              </button>
+              <b>{guests}</b>
+              <button onClick={() => setGuests(Math.min(12, guests + 1))}>
+                <Plus />
+              </button>
+            </div>
+          </div>
+          <div className="price-row">
+            <span>Total</span>
+            <b>NPR {(selectedExp.price * guests).toLocaleString()}</b>
+          </div>
+          <div className="soft-banner">
+            <ShieldCheck />
+            <p>
+              Prototype checkout: no real payment is processed. Price is
+              recalculated server-side.
+            </p>
+          </div>
+          {error && <div className="form-error">{error}</div>}
+          <Primary onClick={confirmBooking}>Confirm booking</Primary>
+        </div>
+      </Frame>
+    );
+  }
+  function ConfirmedView() {
+    return (
+      <Frame>
+        <div className="success-page">
+          <Check className="success-icon" />
+          <h1>Booking confirmed</h1>
+          <p>
+            Your booking is now shared with the assigned operator and manager
+            workspace.
+          </p>
+          <Primary onClick={() => go("bookings")}>My Bookings</Primary>
+        </div>
+      </Frame>
+    );
+  }
+  function BookingsView() {
+    return (
+      <Frame>
+        <Header title="My Bookings" />
+        <div className="phone-body">
+          {bookings.length ? (
+            bookings.map((b) => (
+              <article className="booking-row" key={b.id}>
+                <CalendarDays />
+                <div>
+                  <strong>{b.experienceTitle}</strong>
+                  <span>
+                    {b.date || ""} · {b.time} · {b.guests} guests
+                  </span>
+                </div>
+                <b>{b.status}</b>
+              </article>
+            ))
+          ) : (
+            <div className="empty">
+              <CalendarDays />
+              <h2>No bookings yet</h2>
+              <Primary onClick={() => go("experiences")}>
+                Browse experiences
+              </Primary>
+            </div>
+          )}
+        </div>
+      </Frame>
+    );
+  }
+  function PointsView() {
+    return (
+      <Frame>
+        <Header title="Heritage Points" back="profile" />
+        <div className="phone-body">
+          <div className="points-card">
+            <span>Your balance</span>
+            <strong>{points}</strong>
+          </div>
+          {rewardMsg && <div className="reward-msg">{rewardMsg}</div>}
+          <div className="reward-row">
+            <Utensils />
+            <div>
+              <strong>Local café discount</strong>
+              <span>100 points</span>
+            </div>
+            <button
+              disabled={points < 100}
+              onClick={() => redeem(100, "Local café discount")}
+            >
+              Redeem
+            </button>
+          </div>
+          <div className="reward-row">
+            <Palette />
+            <div>
+              <strong>Craft workshop discount</strong>
+              <span>200 points</span>
+            </div>
+            <button
+              disabled={points < 200}
+              onClick={() => redeem(200, "Craft workshop discount")}
+            >
+              Redeem
+            </button>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function ImpactView() {
+    const active = bookings.filter(
+      (b) => !["Cancelled", "Refunded"].includes(b.status),
+    );
+    return (
+      <Frame>
+        <Header title="My Impact" back="profile" />
+        <div className="phone-body">
+          <div className="impact-grid">
+            <article>
+              <CircleDollarSign />
+              <b>
+                NPR {active.reduce((s, b) => s + b.amount, 0).toLocaleString()}
+              </b>
+              <span>Booked locally</span>
+            </article>
+            <article>
+              <Store />
+              <b>{active.length}</b>
+              <span>Cultural bookings</span>
+            </article>
+            <article>
+              <Route />
+              <b>{quietAdded.length}</b>
+              <span>Quieter stops added</span>
+            </article>
+          </div>
+          <div className="soft-banner">
+            <ShieldCheck />
+            <p>
+              These are prototype-account metrics. No conservation transfer is
+              claimed.
+            </p>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function ProfileView() {
+    const ini = user.name
+      .split(/\s+/)
+      .map((x) => x[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+    return (
+      <Frame>
+        <div className="profile-top">
+          <div className="avatar">{ini}</div>
+          <div>
+            <h1>{user.name}</h1>
+            <span>{points} points</span>
+          </div>
+          <button onClick={onSettings}>
+            <Settings />
+          </button>
+        </div>
+        <div className="profile-menu">
+          <button onClick={() => go("bookings")}>
+            <CalendarDays />
+            My bookings
+            <ChevronRight />
+          </button>
+          <button onClick={() => go("points")}>
+            <Gift />
+            Heritage Points
+            <ChevronRight />
+          </button>
+          <button onClick={() => go("impact")}>
+            <Leaf />
+            My impact
+            <ChevronRight />
+          </button>
+          <button onClick={() => go("privacy")}>
+            <ShieldCheck />
+            Privacy
+            <ChevronRight />
+          </button>
+          <button onClick={() => go("notifications")}>
+            <Bell />
+            Notifications
+            <ChevronRight />
+          </button>
+          <button onClick={onSettings}>
+            <Settings />
+            Account settings
+            <ChevronRight />
+          </button>
+          <button
+            onClick={() => {
+              setPortal("productMap");
+              location.hash = "#/screens";
+            }}
+          >
+            <Grid3X3 />
+            149 Traveler prototype screens
+            <ChevronRight />
+          </button>
+          <button className="logout" onClick={onLogout}>
+            <LogOut />
+            Log out
+            <ChevronRight />
+          </button>
+        </div>
+      </Frame>
+    );
+  }
+  function PrivacyView() {
+    return (
+      <Frame>
+        <Header title="Privacy" back="profile" />
+        <div className="phone-body">
+          <h1>Privacy by default.</h1>
+          <p className="lead">
+            The same persisted account preference is used here and in Settings.
+          </p>
+          <div className="setting-toggle">
+            <div>
+              <strong>Anonymous location sharing</strong>
+              <span>Opt in to location-aware discovery.</span>
+            </div>
+            <button
+              className={settings?.location_sharing ? "on" : ""}
+              onClick={() => savePrivacy(!settings?.location_sharing)}
+            >
+              <i />
+            </button>
+          </div>
+          <div className="simple-row">
+            <Bell />
+            Crowd alerts <b>{settings?.crowd_alerts ? "On" : "Off"}</b>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+  function NotificationsView() {
+    return (
+      <Frame>
+        <Header title="Notifications" back="profile" />
+        <div className="phone-body">
+          <div className="demo-banner">
+            <ShieldCheck />
+            <div>
+              <strong>SHOWCASE DEMO</strong>
+              <span>
+                These example notifications demonstrate the intended event
+                types.
+              </span>
+            </div>
+          </div>
+          {[
+            ["Crowd changed", "Patan crowd pressure changed."],
+            ["Booking update", "Your operator can update attendance status."],
+            ["Points earned", "Bookings add Heritage Points."],
+          ].map(([a, b]) => (
+            <div className="notification-row" key={a}>
+              <i />
+              <div>
+                <strong>{a}</strong>
+                <p>{b}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Frame>
+    );
+  }
+  function PlanView() {
+    return (
+      <Frame>
+        <Header title="AI Trip Planner" />
+        <div className="phone-body">
+          <h1>Plan the complete trip.</h1>
+          <div className="planner-form">
+            <label>
+              Destinations
+              <textarea
+                value={planner.destinations}
+                onChange={(e) =>
+                  setPlanner({ ...planner, destinations: e.target.value })
+                }
+              />
+            </label>
+            <div className="pair">
+              <label>
+                Start
+                <input
+                  type="date"
+                  value={planner.startDate}
+                  onChange={(e) =>
+                    setPlanner({ ...planner, startDate: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                End
+                <input
+                  type="date"
+                  value={planner.endDate}
+                  onChange={(e) =>
+                    setPlanner({ ...planner, endDate: e.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <label>
+              Budget NPR
+              <input
+                type="number"
+                value={planner.budget}
+                onChange={(e) =>
+                  setPlanner({ ...planner, budget: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Interests
+              <textarea
+                value={planner.interests}
+                onChange={(e) =>
+                  setPlanner({ ...planner, interests: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Crowd preference
+              <select
+                value={planner.crowdPreference}
+                onChange={(e) =>
+                  setPlanner({ ...planner, crowdPreference: e.target.value })
+                }
+              >
+                <option>Avoid peak crowds</option>
+                <option>Balanced</option>
+                <option>Famous places first</option>
+              </select>
+            </label>
+          </div>
+          {aiError && <div className="form-error">{aiError}</div>}
+          <Primary disabled={aiLoading} onClick={generate}>
+            {aiLoading ? "Building timeline…" : "Generate grounded AI timeline"}
+          </Primary>
+        </div>
+      </Frame>
+    );
+  }
+  function ItineraryView() {
+    if (!aiPlan)
+      return (
+        <Frame>
+          <Header title="Journey" back="plan" />
+          <div className="empty">
+            <Sparkles />
+            <h2>No AI journey yet</h2>
+          </div>
+        </Frame>
+      );
+    return (
+      <Frame>
+        <Header title="AI Journey" back="plan" />
+        <div className="phone-body">
+          <div className="journey-hero">
+            <h1>{aiPlan.title}</h1>
+            <p>{aiPlan.summary}</p>
+            <strong>
+              {aiPlan.currency}{" "}
+              {Math.round(aiPlan.total_estimated_cost).toLocaleString()}{" "}
+              estimated
+            </strong>
+          </div>
+          {aiPlan.days.map((d) => (
+            <section className="day" key={d.day}>
+              <h2>
+                Day {d.day} · {d.theme}
+              </h2>
+              {d.items.map((it, i) => (
+                <article className="timeline-row" key={i}>
+                  <time>{it.time}</time>
+                  <i>{i + 1}</i>
+                  <div>
+                    <strong>{it.title}</strong>
+                    <span>
+                      {it.location} · {it.duration_minutes} min
+                    </span>
+                    <p>{it.reason}</p>
+                    <small>{it.crowd_strategy}</small>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ))}
+        </div>
+      </Frame>
+    );
+  }
+  function ProductMap() {
+    const [query, setQuery] = useState("");
+    const rows = PAGE_LIBRARY.filter(
+      (p) =>
+        p.role === "Traveler" &&
+        `${p.title} ${p.module}`.toLowerCase().includes(query.toLowerCase()),
+    );
+    return (
+      <main className="product-map">
+        <header>
+          <button onClick={() => go("profile")}>
+            <ArrowLeft />
+            Back
+          </button>
+          <Logo />
+          <h1>149 Traveler Prototype Screens</h1>
+          <p>
+            Role-protected Admin and Operator workspaces are not exposed here.
+          </p>
+        </header>
+        <div className="library">
+          <label>
+            <Search />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search traveler screens"
+            />
+          </label>
+          <div className="page-grid">
+            {rows.map((p) => (
+              <button key={p.id} onClick={() => openCatalog(p)}>
+                <span>{p.module}</span>
+                <strong>{p.title}</strong>
+                <small>{p.route}</small>
+                <ArrowRight />
+              </button>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
+  if (portal === "productMap") return <ProductMap />;
+  if (portal === "catalog" && catalogPage)
+    return (
+      <ProductScreenRenderer
+        page={catalogPage}
+        pages={PAGE_LIBRARY.filter((p) => p.role === "Traveler")}
+        onBack={() => {
+          setPortal("productMap");
+          location.hash = "#/screens";
+        }}
+        onOpen={openCatalog}
+        crowdLevel={currentLevel}
+        crowdLabel={crowdInfo[currentLevel].label}
+        crowdWait={currentCrowd?.wait || crowdInfo[currentLevel].wait}
+        onOpenCore={(t) => go(t as Screen)}
+      />
+    );
+  if (screen === "home") return <HomeView />;
+  if (screen === "search") return <SearchView />;
+  if (screen === "filters") return <FiltersView />;
+  if (screen === "map") return <MapView />;
+  if (screen === "alert") return <AlertView />;
+  if (screen === "quiet") return <QuietView />;
+  if (screen === "place") return <PlaceView />;
+  if (screen === "experiences") return <ExperiencesView />;
+  if (screen === "experience") return <ExperienceView />;
+  if (screen === "booking") return <BookingView />;
+  if (screen === "confirmed") return <ConfirmedView />;
+  if (screen === "bookings") return <BookingsView />;
+  if (screen === "points") return <PointsView />;
+  if (screen === "impact") return <ImpactView />;
+  if (screen === "privacy") return <PrivacyView />;
+  if (screen === "notifications") return <NotificationsView />;
+  if (screen === "plan") return <PlanView />;
+  if (screen === "itinerary") return <ItineraryView />;
+  return <ProfileView />;
+}

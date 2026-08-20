@@ -1,71 +1,165 @@
-import * as React from "react"
-import Link from "next/link"
+"use client"
+import React, { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { api } from "@/lib/platform";
 import { 
-  LayoutDashboard, 
-  Map, 
-  Users, 
-  Ticket, 
-  CalendarCheck, 
-  Store, 
-  LineChart, 
-  Heart, 
-  Settings 
-} from "lucide-react"
+  Activity, BarChart3, BookOpen, CalendarDays, CircleDollarSign, 
+  Home, LayoutDashboard, MapPin, Star, Store, TicketCheck, Users, X 
+} from "lucide-react";
+import "@/components/ref/management.css";
+
+const SESSION_KEY = "yatralink_vercel_session";
+
+function Brand() {
+  return (
+    <div className="mc-brand">
+      <span>
+        <MapPin />
+      </span>
+      <strong>
+        Yatra<b>Link</b>
+      </strong>
+    </div>
+  );
+}
+
+function SidebarAdmin({ active, nav, logout }: any) {
+  const items = [
+    ["/manager", "Overview", <LayoutDashboard key="1" />],
+    ["/manager/places", "Places", <MapPin key="2" />],
+    ["/manager/experiences", "Experiences", <BookOpen key="3" />],
+    ["/manager/bookings", "Bookings", <TicketCheck key="4" />],
+    ["/manager/operators", "Operators", <Users key="5" />],
+    ["/manager/crowd", "Crowd", <Activity key="6" />],
+    ["/manager/analytics", "Analytics", <BarChart3 key="7" />],
+    ["/manager/impact", "Impact", <Star key="8" />],
+  ];
+  return (
+    <aside className="mc-sidebar">
+      <div className="mc-sidebar__head">
+        <Brand />
+        <small>Destination Manager</small>
+      </div>
+      <nav>
+        {items.map(([v, l, i]) => (
+          <button
+            key={v as string}
+            className={active === v ? "active" : ""}
+            onClick={() => nav(v)}
+          >
+            {i}
+            <span>{l}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="mc-sidebar__foot">
+        <button onClick={() => nav("/manager/settings")} className="mb-2 w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-white/5 rounded-md text-slate-300">
+          <Activity size={18} /> Settings
+        </button>
+        <button onClick={logout}>
+          <X />
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarOperator({ active, nav, logout }: any) {
+  const items = [
+    ["/manager", "Overview", <Home key="1" />],
+    ["/manager/experiences", "My Experiences", <Store key="2" />],
+    ["/manager/bookings", "Bookings", <TicketCheck key="3" />],
+    ["/manager/calendar", "Calendar", <CalendarDays key="4" />],
+    ["/manager/earnings", "Earnings", <CircleDollarSign key="5" />],
+    ["/manager/reviews", "Reviews", <Star key="6" />],
+  ];
+  return (
+    <aside className="mc-sidebar mc-sidebar--operator">
+      <div className="mc-sidebar__head">
+        <Brand />
+        <small>Operator Studio</small>
+      </div>
+      <nav>
+        {items.map(([v, l, i]) => (
+          <button
+            key={v as string}
+            className={active === v ? "active" : ""}
+            onClick={() => nav(v)}
+          >
+            {i}
+            <span>{l}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="mc-sidebar__foot">
+        <button onClick={() => nav("/manager/settings")} className="mb-2 w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-white/5 rounded-md text-slate-300">
+          <Activity size={18} /> Settings
+        </button>
+        <button onClick={logout}>
+          <X />
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex font-sans">
-      
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#102A43] text-white flex flex-col shrink-0 h-screen sticky top-0">
-        <div className="h-16 flex items-center px-6 border-b border-white/10 shrink-0">
-          <span className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            <div className="w-6 h-6 bg-[#D6A84B] rounded flex items-center justify-center">
-              <span className="text-[#102A43] text-xs font-black">Y</span>
-            </div>
-            YatraLink <span className="text-white/60 font-medium text-sm ml-1">Manager</span>
-          </span>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
-          <NavItem href="/manager" icon={<LayoutDashboard className="w-4 h-4" />} label="Dashboard" />
-          <NavItem href="/manager/places" icon={<Map className="w-4 h-4" />} label="Places" />
-          <NavItem href="/manager/crowd" icon={<Users className="w-4 h-4" />} label="Crowd Monitor" />
-          <NavItem href="/manager/experiences" icon={<Ticket className="w-4 h-4" />} label="Experiences" />
-          <NavItem href="/manager/bookings" icon={<CalendarCheck className="w-4 h-4" />} label="Bookings" />
-          <NavItem href="/manager/operators" icon={<Store className="w-4 h-4" />} label="Local Operators" />
-          <NavItem href="/manager/analytics" icon={<LineChart className="w-4 h-4" />} label="Analytics" />
-          <NavItem href="/manager/impact" icon={<Heart className="w-4 h-4" />} label="Impact" />
-        </div>
-        
-        <div className="p-3 border-t border-white/10 shrink-0">
-          <NavItem href="/manager/settings" icon={<Settings className="w-4 h-4" />} label="Settings" />
-        </div>
-      </aside>
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 overflow-auto h-screen">
+  useEffect(() => {
+    const saved = localStorage.getItem(SESSION_KEY) || "";
+    if (!saved) {
+      router.push("/auth");
+      return;
+    }
+    api
+      .get("/api/demo-auth/session", { session_id: saved })
+      .then(({ data }) => {
+        if (data.user.role !== "superadmin" && data.user.role !== "operator") {
+          router.push("/");
+          return;
+        }
+        setUser(data.user);
+      })
+      .catch(() => {
+        localStorage.removeItem(SESSION_KEY);
+        router.push("/auth");
+      })
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  const handleNav = (path: string) => {
+    router.push(path);
+  };
+
+  const logout = async () => {
+    const sessionId = localStorage.getItem(SESSION_KEY);
+    if (sessionId) {
+      await api.post("/api/demo-auth/logout", { session_id: sessionId }).catch(() => {});
+    }
+    localStorage.removeItem(SESSION_KEY);
+    router.push("/auth");
+  };
+
+  if (loading || !user) {
+    return <div className="mc-app"><div style={{padding: '2rem'}}>Loading workspace...</div></div>;
+  }
+
+  return (
+    <div className="mc-app">
+      {user.role === "superadmin" ? (
+        <SidebarAdmin active={pathname} nav={handleNav} logout={logout} />
+      ) : (
+        <SidebarOperator active={pathname} nav={handleNav} logout={logout} />
+      )}
+      <main className="mc-content">
         {children}
       </main>
-
     </div>
-  )
+  );
 }
-
-function NavItem({ href, icon, label }: { href: string, icon: React.ReactNode, label: string }) {
-  const active = typeof window !== 'undefined' ? window.location.pathname === href : false;
-  return (
-    <Link 
-      href={href}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
-        active 
-          ? 'bg-[#086C6E] text-white shadow-sm' 
-          : 'text-white/70 hover:bg-white/5 hover:text-white'
-      }`}
-    >
-      {icon}
-      {label}
-    </Link>
-  )
-}
-

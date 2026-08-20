@@ -1,304 +1,251 @@
 "use client"
+import React, { useState, useEffect } from "react";
+import { api } from "@/lib/platform";
+import { useManagementState } from "@/components/manager/useManagementState";
+import { Settings as SettingsIcon, ShieldCheck, Bell, Languages, AlertTriangle, Check, Save } from "lucide-react";
 
-import * as React from "react"
-import { User, Bell, Shield, Globe, Palette, Database, LogOut, ChevronRight, Camera, Save } from "lucide-react"
+const SESSION_KEY = "yatralink_vercel_session";
 
-const sections = [
-  { id: "profile", label: "Profile", icon: User },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "regional", label: "Regional", icon: Globe },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "data", label: "Data & Privacy", icon: Database },
-]
+function Switch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className={`access-switch ${value ? "on" : ""}`}
+      onClick={() => onChange(!value)}
+      aria-pressed={value}
+      style={{
+        display: "inline-flex",
+        width: "36px",
+        height: "20px",
+        borderRadius: "10px",
+        background: value ? "#3273f6" : "#444",
+        position: "relative",
+        border: "none",
+        cursor: "pointer",
+        transition: "background 0.2s"
+      }}
+    >
+      <span style={{
+        position: "absolute",
+        top: "2px",
+        left: value ? "18px" : "2px",
+        width: "16px",
+        height: "16px",
+        borderRadius: "8px",
+        background: "#fff",
+        transition: "left 0.2s"
+      }} />
+    </button>
+  );
+}
 
 export default function SettingsPage() {
-  const [active, setActive] = React.useState("profile")
-  const [saved, setSaved] = React.useState(false)
-  const [notifState, setNotifState] = React.useState({
-    crowdAlerts: true,
-    bookingUpdates: true,
-    weeklyReport: true,
-    operatorApprovals: false,
-    marketingEmails: false,
-  })
+  const { user, loading, error: authError } = useManagementState();
+  const [settings, setSettings] = useState<any>({
+    name: "",
+    language: "English",
+    crowd_alerts: true,
+    location_sharing: false,
+    accessibility: "Standard",
+    travel_pace: "Balanced",
+    dark_mode: false,
+  });
+  const [tab, setTab] = useState<"general" | "privacy" | "notifications" | "language">("general");
+  const [busy, setBusy] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
+  useEffect(() => {
+    const sessionId = localStorage.getItem(SESSION_KEY) || "";
+    if (!sessionId) return;
+    api
+      .get("/api/user-settings", { session_id: sessionId })
+      .then(({ data }) => setSettings(data.settings))
+      .catch(() => setError("Unable to load settings."))
+      .finally(() => setBusy(false));
+  }, []);
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const sessionId = localStorage.getItem(SESSION_KEY) || "";
+      const { data } = await api.put("/api/user-settings", {
+        session_id: sessionId,
+        settings,
+      });
+      setSettings(data.settings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {
+      setError("Settings could not be saved. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading || busy) return <div style={{padding: '2rem'}}>Loading settings...</div>;
+  if (authError || !user) return <div style={{padding: '2rem'}}>Error loading settings</div>;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto pb-12">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#102A43]">Settings</h1>
-        <p className="text-sm text-gray-500 font-medium mt-0.5">Manage your account and platform preferences</p>
-      </div>
-
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <div className="w-56 shrink-0 space-y-1">
-          {sections.map(({ id, label, icon: Icon }) => (
+    <>
+      <header className="mc-header">
+        <h1>Settings</h1>
+        <p>Manage your account preferences.</p>
+      </header>
+      <div className="mc-scroll" style={{ display: 'flex', gap: '2rem' }}>
+        <aside style={{ width: '200px' }}>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button
-              key={id}
-              onClick={() => setActive(id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                active === id
-                  ? "bg-[#086C6E] text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={tab === "general" ? "mc-primary" : "mc-secondary"}
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => setTab("general")}
             >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-              {active === id && <ChevronRight className="w-3.5 h-3.5 ml-auto" />}
+              <SettingsIcon size={18} /> General
             </button>
-          ))}
-          <div className="pt-4 border-t border-gray-100 mt-4">
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors">
-              <LogOut className="w-4 h-4" /> Sign Out
+            <button
+              className={tab === "privacy" ? "mc-primary" : "mc-secondary"}
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => setTab("privacy")}
+            >
+              <ShieldCheck size={18} /> Privacy
             </button>
-          </div>
-        </div>
-
-        {/* Content Panel */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
-
-          {/* Profile */}
-          {active === "profile" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Profile Information</h2>
-              
-              {/* Avatar */}
-              <div className="flex items-center gap-5">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#086C6E] to-[#054E50] flex items-center justify-center text-white text-2xl font-black shadow-lg">
-                    A
+            <button
+              className={tab === "notifications" ? "mc-primary" : "mc-secondary"}
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => setTab("notifications")}
+            >
+              <Bell size={18} /> Notifications
+            </button>
+            <button
+              className={tab === "language" ? "mc-primary" : "mc-secondary"}
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => setTab("language")}
+            >
+              <Languages size={18} /> Language
+            </button>
+          </nav>
+        </aside>
+        
+        <section className="mc-card" style={{ flex: 1, maxWidth: '600px' }}>
+          <div className="mc-form">
+            {error && (
+              <div className="access-error" style={{ color: '#d9514e', display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <AlertTriangle size={18} />
+                {error}
+              </div>
+            )}
+            
+            {tab === "general" && (
+              <>
+                <label>
+                  Display name
+                  <input
+                    value={settings.name}
+                    onChange={(e) => setSettings({ ...settings, name: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Travel pace
+                  <select
+                    value={settings.travel_pace}
+                    onChange={(e) => setSettings({ ...settings, travel_pace: e.target.value })}
+                  >
+                    <option>Relaxed</option>
+                    <option>Balanced</option>
+                    <option>Fast-paced</option>
+                  </select>
+                </label>
+                <label>
+                  Accessibility
+                  <select
+                    value={settings.accessibility}
+                    onChange={(e) => setSettings({ ...settings, accessibility: e.target.value })}
+                  >
+                    <option>Standard</option>
+                    <option>Reduced walking</option>
+                    <option>Step-free preferred</option>
+                    <option>High contrast</option>
+                  </select>
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                  <div>
+                    <strong>Dark workspace</strong>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#999' }}>Use a darker account settings workspace.</p>
                   </div>
-                  <button className="absolute bottom-0 right-0 w-7 h-7 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
-                    <Camera className="w-3.5 h-3.5 text-gray-500" />
-                  </button>
+                  <Switch
+                    value={settings.dark_mode}
+                    onChange={(v) => setSettings({ ...settings, dark_mode: v })}
+                  />
                 </div>
+              </>
+            )}
+
+            {tab === "privacy" && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
                 <div>
-                  <p className="font-bold text-[#102A43]">Admin Manager</p>
-                  <p className="text-sm text-gray-400">Lalitpur Heritage Zone</p>
-                  <button className="text-xs font-semibold text-[#086C6E] mt-1 hover:underline">Change photo</button>
+                  <strong>Anonymous location sharing</strong>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#999' }}>Opt in to privacy-preserving location features.</p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: "First Name", placeholder: "Admin", value: "Admin" },
-                  { label: "Last Name", placeholder: "Manager", value: "Manager" },
-                  { label: "Email Address", placeholder: "admin@yatralink.com", value: "admin@yatralink.com" },
-                  { label: "Phone Number", placeholder: "+977-9801234567", value: "+977-9801234567" },
-                ].map(field => (
-                  <div key={field.label} className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">{field.label}</label>
-                    <input
-                      defaultValue={field.value}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#086C6E]/20 focus:border-[#086C6E] transition-all"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Zone / Region</label>
-                <select className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#086C6E]/20 focus:border-[#086C6E] transition-all bg-white">
-                  <option>Lalitpur Heritage Zone</option>
-                  <option>Kathmandu Valley Zone</option>
-                  <option>Pokhara Region</option>
-                  <option>Chitwan Zone</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Bio / Notes</label>
-                <textarea
-                  rows={3}
-                  defaultValue="Managing sustainable tourism for Lalitpur Heritage Zone since 2023."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#086C6E]/20 focus:border-[#086C6E] transition-all resize-none"
+                <Switch
+                  value={settings.location_sharing}
+                  onChange={(v) => setSettings({ ...settings, location_sharing: v })}
                 />
               </div>
-            </>
-          )}
+            )}
 
-          {/* Notifications */}
-          {active === "notifications" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Notification Preferences</h2>
-              <div className="space-y-4">
-                {[
-                  { key: "crowdAlerts", label: "Crowd Alerts", desc: "Get notified when crowd levels reach high or critical thresholds" },
-                  { key: "bookingUpdates", label: "Booking Updates", desc: "Receive updates when new bookings are made or cancelled" },
-                  { key: "weeklyReport", label: "Weekly Report", desc: "Automated weekly summary of all destination performance metrics" },
-                  { key: "operatorApprovals", label: "Operator Approvals", desc: "Alerts when new operator applications require your review" },
-                  { key: "marketingEmails", label: "Marketing Emails", desc: "Occasional platform updates and feature announcements" },
-                ].map(({ key, label, desc }) => (
-                  <div key={key} className="flex items-start justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <div className="flex-1 mr-6">
-                      <p className="text-sm font-semibold text-[#102A43]">{label}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
-                    </div>
-                    <button
-                      onClick={() => setNotifState(s => ({ ...s, [key]: !s[key as keyof typeof s] }))}
-                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${
-                        notifState[key as keyof typeof notifState] ? "bg-[#086C6E]" : "bg-gray-200"
-                      }`}
-                    >
-                      <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 m-0.5 ${
-                        notifState[key as keyof typeof notifState] ? "translate-x-5" : "translate-x-0"
-                      }`} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Security */}
-          {active === "security" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Security Settings</h2>
-              <div className="space-y-5">
-                <div className="p-4 rounded-xl border border-gray-100 space-y-4">
-                  <p className="text-sm font-bold text-[#102A43]">Change Password</p>
-                  {["Current Password", "New Password", "Confirm New Password"].map(label => (
-                    <div key={label} className="space-y-1.5">
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">{label}</label>
-                      <input type="password" placeholder="••••••••" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#086C6E]/20 focus:border-[#086C6E] transition-all" />
-                    </div>
-                  ))}
-                </div>
-                <div className="p-4 rounded-xl border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-[#102A43]">Two-Factor Authentication</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Add an extra layer of security to your account</p>
-                    </div>
-                    <button className="text-sm font-semibold text-[#086C6E] border border-[#086C6E] px-4 py-2 rounded-xl hover:bg-[#086C6E]/5 transition-colors">Enable</button>
-                  </div>
-                </div>
-                <div className="p-4 rounded-xl border border-red-100 bg-red-50/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-red-600">Active Sessions</p>
-                      <p className="text-xs text-red-400 mt-0.5">2 active sessions — Kathmandu, Nepal</p>
-                    </div>
-                    <button className="text-sm font-semibold text-red-500 border border-red-200 px-4 py-2 rounded-xl hover:bg-red-50 transition-colors">Revoke All</button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Regional */}
-          {active === "regional" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Regional Preferences</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: "Language", options: ["English", "Nepali (नेपाली)", "Hindi", "Chinese"] },
-                  { label: "Timezone", options: ["Asia/Kathmandu (NPT, UTC+5:45)", "Asia/Kolkata (IST)", "UTC"] },
-                  { label: "Date Format", options: ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"] },
-                  { label: "Currency", options: ["NPR — Nepali Rupee", "USD — US Dollar", "EUR — Euro"] },
-                ].map(({ label, options }) => (
-                  <div key={label} className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">{label}</label>
-                    <select className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#086C6E]/20 focus:border-[#086C6E] bg-white transition-all">
-                      {options.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Appearance */}
-          {active === "appearance" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Appearance</h2>
-              <div className="space-y-5">
+            {tab === "notifications" && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
                 <div>
-                  <p className="text-sm font-bold text-[#102A43] mb-3">Color Theme</p>
-                  <div className="flex gap-3">
-                    {[
-                      { label: "Teal (Default)", color: "bg-[#086C6E]", active: true },
-                      { label: "Crimson", color: "bg-red-600", active: false },
-                      { label: "Indigo", color: "bg-indigo-600", active: false },
-                      { label: "Amber", color: "bg-amber-500", active: false },
-                    ].map(theme => (
-                      <button key={theme.label} className={`flex flex-col items-center gap-2 group`}>
-                        <div className={`w-10 h-10 rounded-xl ${theme.color} shadow-sm ${theme.active ? "ring-2 ring-offset-2 ring-[#086C6E]" : "hover:scale-105 transition-transform"}`} />
-                        <span className="text-[11px] font-semibold text-gray-500">{theme.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <strong>Crowd alerts</strong>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#999' }}>Surface crowd changes that affect your planned destinations.</p>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-[#102A43] mb-3">Mode</p>
-                  <div className="flex gap-3">
-                    {["Light", "Dark", "System"].map(mode => (
-                      <button key={mode} className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all ${mode === "Light" ? "bg-[#086C6E] text-white border-[#086C6E]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-sm font-bold text-[#102A43]">Sidebar Density</p>
-                  <div className="flex gap-3">
-                    {["Comfortable", "Compact"].map(d => (
-                      <button key={d} className={`px-5 py-2.5 rounded-xl text-sm font-semibold border transition-all ${d === "Comfortable" ? "bg-[#086C6E] text-white border-[#086C6E]" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <Switch
+                  value={settings.crowd_alerts}
+                  onChange={(v) => setSettings({ ...settings, crowd_alerts: v })}
+                />
               </div>
-            </>
-          )}
+            )}
 
-          {/* Data & Privacy */}
-          {active === "data" && (
-            <>
-              <h2 className="text-base font-bold text-[#102A43] border-b border-gray-100 pb-4">Data & Privacy</h2>
-              <div className="space-y-4">
-                {[
-                  { label: "Export My Data", desc: "Download a copy of all your account data and activity logs as a CSV or JSON file.", btn: "Export", btnStyle: "border-gray-200 text-gray-700 hover:bg-gray-50" },
-                  { label: "Analytics Data Sharing", desc: "Allow anonymized usage data to be shared to improve the platform.", btn: "Enabled", btnStyle: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-                  { label: "Delete Account", desc: "Permanently delete your account and all associated data. This action cannot be undone.", btn: "Delete", btnStyle: "border-red-200 text-red-500 hover:bg-red-50" },
-                ].map(({ label, desc, btn, btnStyle }) => (
-                  <div key={label} className={`p-4 rounded-xl border ${label === "Delete Account" ? "border-red-100 bg-red-50/30" : "border-gray-100"}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className={`text-sm font-bold ${label === "Delete Account" ? "text-red-600" : "text-[#102A43]"}`}>{label}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 max-w-md">{desc}</p>
-                      </div>
-                      <button className={`text-sm font-semibold border px-4 py-2 rounded-xl shrink-0 transition-colors ${btnStyle}`}>{btn}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+            {tab === "language" && (
+              <label>
+                Language
+                <select
+                  value={settings.language}
+                  onChange={(e) => setSettings({ ...settings, language: e.target.value })}
+                >
+                  <option>English</option>
+                  <option>नेपाली</option>
+                  <option>हिन्दी</option>
+                  <option>中文</option>
+                </select>
+                <small style={{ display: 'block', marginTop: '0.25rem', color: '#999' }}>
+                  Preference is persisted; full interface translation remains a prototype extension.
+                </small>
+              </label>
+            )}
 
-          {/* Save Button */}
-          <div className="pt-4 border-t border-gray-100 flex justify-end">
             <button
-              onClick={handleSave}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                saved
-                  ? "bg-emerald-500 text-white"
-                  : "bg-[#086C6E] text-white hover:bg-[#086C6E]/90 shadow-sm"
-              }`}
+              className="mc-primary"
+              style={{ marginTop: '2rem' }}
+              disabled={busy}
+              onClick={save}
             >
-              <Save className="w-4 h-4" />
-              {saved ? "Saved!" : "Save Changes"}
+              {saved ? (
+                <>
+                  <Check size={18} />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Save size={18} />
+                  Save settings
+                </>
+              )}
             </button>
           </div>
-        </div>
+        </section>
       </div>
-    </div>
-  )
+    </>
+  );
 }
