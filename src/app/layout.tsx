@@ -21,10 +21,6 @@ export const viewport: Viewport = {
   themeColor: "#086C6E", // Deep Teal
 };
 
-import { AppProvider } from "@/context/AppContext";
-import { AuthProvider } from "@/context/AuthContext";
-import { ResetDemo } from "@/components/ResetDemo";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,12 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans bg-[var(--color-bg-base)] text-[var(--color-brand-secondary)] pb-[env(safe-area-inset-bottom)]">
-        <AuthProvider>
-          <AppProvider>
-            {children}
-            <ResetDemo />
-          </AppProvider>
-        </AuthProvider>
+        {children}
       </body>
     </html>
   );
