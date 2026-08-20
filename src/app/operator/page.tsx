@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { 
   Users, 
   Wallet, 
@@ -9,7 +10,6 @@ import {
   CalendarCheck, 
   Settings,
   ChevronRight,
-  Clock,
   CheckCircle2,
   XCircle,
   TrendingUp,
@@ -119,11 +119,12 @@ export default function OperatorDashboardPage() {
           <h2 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wide px-1">Management</h2>
           <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden">
             
-            <MenuRow icon={<CalendarCheck className="w-5 h-5 text-gray-600" />} title="Upcoming Bookings" />
-            <MenuRow icon={<Store className="w-5 h-5 text-gray-600" />} title="Experience Listing" />
-            <MenuRow icon={<Wallet className="w-5 h-5 text-gray-600" />} title="Pricing" />
-            <MenuRow icon={<Star className="w-5 h-5 text-gray-600" />} title="Reviews" />
-            <MenuRow icon={<TrendingUp className="w-5 h-5 text-gray-600" />} title="Revenue" hideBorder />
+            <MenuRow href="/operator/bookings" icon={<CalendarCheck className="w-5 h-5 text-gray-600" />} title="Upcoming Bookings" />
+            <MenuRow href="/operator/listing" icon={<Store className="w-5 h-5 text-gray-600" />} title="Experience Listing" />
+            <MenuRow href="/operator/pricing" icon={<Wallet className="w-5 h-5 text-gray-600" />} title="Pricing" />
+            <MenuRow href="/operator/reviews" icon={<Star className="w-5 h-5 text-gray-600" />} title="Reviews" />
+            <MenuRow href="/operator/revenue" icon={<TrendingUp className="w-5 h-5 text-gray-600" />} title="Revenue" />
+            <MenuRow href="/operator/settings" icon={<Settings className="w-5 h-5 text-gray-600" />} title="Settings" hideBorder />
             
           </div>
         </div>
@@ -133,7 +134,14 @@ export default function OperatorDashboardPage() {
   )
 }
 
-function StatusButton({ currentStatus, targetStatus, icon, onClick, activeColor, inactiveColor }: any) {
+function StatusButton({ currentStatus, targetStatus, icon, onClick, activeColor, inactiveColor }: {
+  currentStatus: string
+  targetStatus: string
+  icon: React.ReactNode
+  onClick: () => void
+  activeColor: string
+  inactiveColor: string
+}) {
   const isActive = currentStatus === targetStatus
   return (
     <button 
@@ -162,9 +170,9 @@ function MetricCard({ title, value, icon }: { title: string, value: string, icon
   )
 }
 
-function MenuRow({ icon, title, hideBorder = false }: { icon: React.ReactNode, title: string, hideBorder?: boolean }) {
+function MenuRow({ href, icon, title, hideBorder = false }: { href: string, icon: React.ReactNode, title: string, hideBorder?: boolean }) {
   return (
-    <button className={`w-full flex items-center justify-between p-4 active:bg-gray-50 transition-colors group ${!hideBorder ? 'border-b border-gray-100' : ''}`}>
+    <Link href={href} className={`w-full flex items-center justify-between p-4 active:bg-gray-50 transition-colors group ${!hideBorder ? 'border-b border-gray-100' : ''}`}>
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-[#086C6E]/10 transition-colors">
           {icon}
@@ -172,8 +180,6 @@ function MenuRow({ icon, title, hideBorder = false }: { icon: React.ReactNode, t
         <span className="font-semibold text-gray-800">{title}</span>
       </div>
       <ChevronRight className="w-5 h-5 text-gray-300" />
-    </button>
+    </Link>
   )
 }
-
-// Ensure TrendingUp is available, import it above. (Added it to the lucide-react imports)
