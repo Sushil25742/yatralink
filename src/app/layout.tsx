@@ -22,6 +22,7 @@ export const viewport: Viewport = {
 };
 
 import { AppProvider } from "@/context/AppContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { ResetDemo } from "@/components/ResetDemo";
 
 export default function RootLayout({
@@ -32,10 +33,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans bg-[var(--color-bg-base)] text-[var(--color-brand-secondary)] pb-[env(safe-area-inset-bottom)]">
-        <AppProvider>
-          {children}
-          <ResetDemo />
-        </AppProvider>
+        <AuthProvider>
+          <AppProvider>
+            {children}
+            <ResetDemo />
+          </AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );
