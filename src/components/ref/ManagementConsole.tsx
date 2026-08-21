@@ -139,11 +139,14 @@ export default function ManagementConsole({ sessionId, user, onSettings, onLogou
     if (action === 'add_operator' && state) {
       const op = {
         id: 'op_' + Date.now(),
+        name: payload.business as string,
         business: payload.business as string,
         email: payload.email as string,
         experiences: 0,
         status: 'Pending',
-        joined: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        rating: 0,
+        revenue: 0,
+        applied: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       };
       setState({
         ...state,
