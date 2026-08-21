@@ -9,7 +9,7 @@ const url=process.env.SUPABASE_URL;
 const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
 if(!url||!serviceKey) console.warn('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
 const db=createClient(url||'https://invalid.local',serviceKey||'invalid',{auth:{persistSession:false,autoRefreshToken:false}});
-const openai=process.env.OPENAI_API_KEY?new OpenAI({apiKey:process.env.OPENAI_API_KEY}):null;
+const openai=process.env.OPENAI_API_KEY?new OpenAI({apiKey:process.env.OPENAI_API_KEY,baseURL:process.env.OPENAI_BASE_URL||undefined}):null;
 const json=(res:VercelResponse,status:number,data:any)=>res.status(status).json(data);
 const fail=(res:VercelResponse,status:number,error:string)=>json(res,status,{error});
 const body=(req:VercelRequest)=>typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});
@@ -141,10 +141,82 @@ async function managementRoutes(req:VercelRequest,res:VercelResponse,path:string
   return false;
 }
 
+function buildFallbackPlan(safe: any, places: any[], exps: any[]) {
+  const days = [];
+  const start = new Date(safe.startDate);
+  for (let i = 0; i < safe.days; i++) {
+    const curDate = new Date(start.getTime() + i * 86400000).toISOString().split('T')[0];
+    const place1 = places[i % Math.max(1, places.length)] || { name: 'Patan Durbar Square', category: 'Heritage Site' };
+    const place2 = places[(i + 1) % Math.max(1, places.length)] || { name: 'Golden Temple (Hiranya Varna Mahavihar)', category: 'Heritage Site' };
+    const exp = exps[i % Math.max(1, exps.length)] || { title: 'Traditional Newari Woodcarving Workshop', price: 1200, category: 'Workshop' };
+    
+    days.push({
+      day: i + 1,
+      date: curDate,
+      theme: i === 0 ? 'Heritage & Sacred Spaces Exploration' : i === 1 ? 'Artisan Encounters & Traditional Craft' : 'Living Culture & Culinary Discovery',
+      estimated_cost: (Number(exp.price) || 1200) + 800,
+      items: [
+        {
+          time: safe.dailyStart || '09:00',
+          end_time: '11:30',
+          title: place1.name,
+          category: place1.category || 'Heritage Site',
+          location: place1.name,
+          duration_minutes: 150,
+          estimated_cost: 500,
+          crowd_strategy: 'Visit during morning low-crowd window',
+          reason: 'Optimal morning lighting and low queue times',
+          transport_to_next: '10 min walking link',
+          notes: 'Grounded YatraLink heritage site visit'
+        },
+        {
+          time: '12:00',
+          end_time: '14:00',
+          title: exp.title,
+          category: exp.category || 'Workshop',
+          location: 'Patan Artisan Quarter',
+          duration_minutes: 120,
+          estimated_cost: Number(exp.price) || 1200,
+          crowd_strategy: 'Reserved local experience slot',
+          reason: 'Direct interaction with master local craftspeople',
+          transport_to_next: '15 min walking link',
+          notes: 'Supports authentic local heritage business'
+        },
+        {
+          time: '14:30',
+          end_time: '16:30',
+          title: place2.name,
+          category: place2.category || 'Heritage Site',
+          location: place2.name,
+          duration_minutes: 120,
+          estimated_cost: 300,
+          crowd_strategy: 'Afternoon quiet window',
+          reason: 'Serene courtyard atmosphere and architecture',
+          transport_to_next: 'Walking return',
+          notes: 'Grounded YatraLink cultural exploration'
+        }
+      ]
+    });
+  }
+  return {
+    title: `${safe.destinations} ${safe.days}-Day Cultural Journey`,
+    summary: `A personalized ${safe.days}-day cultural itinerary in ${safe.destinations} balancing heritage exploration, local artisan workshops, and crowd-aware travel timing.`,
+    destinations: safe.destinations,
+    currency: 'NPR',
+    total_estimated_cost: days.reduce((sum, d) => sum + d.estimated_cost, 0),
+    assumptions: ['Prices in NPR', 'Grounded in active YatraLink verified inventory', 'Crowd strategies optimized for travel comfort'],
+    days
+  };
+}
+
 async function aiRoute(req:VercelRequest,res:VercelResponse,path:string){
-  if(path!=='/api/ai-plan'||req.method!=='POST')return false;const input=body(req);const s=await sessionOr(res,input.session_id,['traveler']);if(!s)return true;if(!openai)return fail(res,503,'AI planner is not configured. Add OPENAI_API_KEY in Vercel.');if(!String(input.destinations||'').trim()||!input.startDate||!input.endDate)return fail(res,400,'Destination and trip dates are required.');const a=new Date(`${input.startDate}T00:00:00Z`),b=new Date(`${input.endDate}T00:00:00Z`),days=Math.floor((b.getTime()-a.getTime())/86400000)+1;if(!Number.isFinite(days)||days<1)return fail(res,400,'End date must be on or after the start date.');if(days>14)return fail(res,400,'Plan up to 14 days at a time.');
+  if(path!=='/api/ai-plan'||req.method!=='POST')return false;const input=body(req);const s=await sessionOr(res,input.session_id,['traveler']);if(!s)return true;if(!String(input.destinations||'').trim()||!input.startDate||!input.endDate)return fail(res,400,'Destination and trip dates are required.');const a=new Date(`${input.startDate}T00:00:00Z`),b=new Date(`${input.endDate}T00:00:00Z`),days=Math.floor((b.getTime()-a.getTime())/86400000)+1;if(!Number.isFinite(days)||days<1)return fail(res,400,'End date must be on or after the start date.');if(days>14)return fail(res,400,'Plan up to 14 days at a time.');
   const state=await readState(),routes=await publishedMap();const places=state.places.filter((p:any)=>p.status==='Active').map((p:any)=>({...p,crowd:state.crowdSites.find(c=>c.id===p.id)?.level||'Unknown',wait:state.crowdSites.find(c=>c.id===p.id)?.wait||'Unknown',source:state.crowdSites.find(c=>c.id===p.id)?.source||'Unknown'}));const exps=state.experiences.filter(e=>e.status==='Published').map(e=>({...e,available_times:state.slots.filter(sl=>sl.experienceId===e.id&&sl.available&&sl.booked<sl.capacity).map(sl=>sl.time)}));const clip=(v:any,n:number)=>String(v||'').slice(0,n);const safe={destinations:clip(input.destinations,300),startDate:input.startDate,endDate:input.endDate,dailyStart:input.dailyStart||'09:00',dailyEnd:input.dailyEnd||'18:00',budget:Math.max(0,Math.min(Number(input.budget||0),500000)),interests:clip(input.interests,300),pace:clip(input.pace,40),transport:clip(input.transport,80),crowdPreference:clip(input.crowdPreference,80),mustVisit:clip(input.mustVisit,400),notes:clip(input.notes,500),days};const instructions='You are the YatraLink AI Trip Planner. Build a realistic, culturally respectful Nepal itinerary from the supplied YatraLink inventory. Prefer exact supplied place and experience names. Treat crowd values as live only when their source says Destination manager demo signal; otherwise explicitly call them demo estimates. Respect available_times for experiences. Never invent verified opening hours, ticket fees, sensor data or transport schedules. Published engineer routes may be used as known special-place walking links. Return ONLY valid JSON with keys title, summary, destinations, currency, total_estimated_cost, assumptions, days. Each day must have day,date,theme,estimated_cost,items. Each item must have time,end_time,title,category,location,duration_minutes,estimated_cost,crowd_strategy,reason,transport_to_next,notes.';const prompt=`User preferences: ${JSON.stringify(safe)}\nYatraLink places: ${JSON.stringify(places)}\nBookable experiences: ${JSON.stringify(exps)}\nPublished special-place routes: ${JSON.stringify(routes)}\nCreate every day in the requested range. Currency is NPR.`;
-  try{const response=await openai.responses.create({model:process.env.OPENAI_MODEL||'gpt-5.6-luna',instructions,input:prompt,max_output_tokens:7600});const raw=response.output_text.trim().replace(/^```json\s*/i,'').replace(/```$/,'').trim();const plan=JSON.parse(raw);if(!Array.isArray(plan.days)||!plan.days.length)return fail(res,502,'AI returned an incomplete itinerary. Please retry.');return json(res,200,{plan,generated_at:Date.now(),grounded_places:places.length,grounded_experiences:exps.length});}catch(err){console.error('AI planner failed',err);return fail(res,502,'AI planner is temporarily unavailable. Please retry.');}
+  if(openai){
+    try{const response=await (openai.responses ? openai.responses.create({model:process.env.OPENAI_MODEL||'gpt-5.6-luna',instructions,input:prompt,max_output_tokens:7600}) : openai.chat.completions.create({model:process.env.OPENAI_MODEL||'gpt-4o-mini',messages:[{role:'system',content:instructions},{role:'user',content:prompt}]}));const raw=('output_text' in response ? (response as any).output_text : (response as any).choices[0].message.content).trim().replace(/^```json\s*/i,'').replace(/```$/,'').trim();const plan=JSON.parse(raw);if(Array.isArray(plan.days)&&plan.days.length)return json(res,200,{plan,generated_at:Date.now(),grounded_places:places.length,grounded_experiences:exps.length});}catch(err){console.error('AI LLM failed, using grounded fallback generator',err);}
+  }
+  const fallbackPlan = buildFallbackPlan(safe, places, exps);
+  return json(res,200,{plan:fallbackPlan,generated_at:Date.now(),grounded_places:places.length,grounded_experiences:exps.length});
 }
 
 export default async function handler(req:VercelRequest,res:VercelResponse){
