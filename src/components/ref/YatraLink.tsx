@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { ArrowLeft,ArrowRight,Bell,Bookmark,CalendarDays,Check,CheckCircle2,ChevronRight,CircleDollarSign,Clock,Compass,Filter,Gift,Grid3X3,Heart,HelpCircle,Home,Landmark,Leaf,LogOut,MapPinned,MapPin,Minus,Navigation,Palette,Plus,Route,Search,Settings,Share2,ShieldCheck,SlidersHorizontal,Sparkles,Star,Store,User,Users,Utensils,X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';import './yatralink.css';
 import { PAGE_LIBRARY,type ProductPage } from './pageLibrary';import ProductScreenRenderer from './ProductScreenRenderer';
-type CrowdLevel='low'|'moderate'|'high'|'critical';type Screen='home'|'search'|'map'|'quiet'|'alert'|'filters'|'plan'|'itinerary'|'place'|'experiences'|'experience'|'booking'|'confirmed'|'bookings'|'points'|'impact'|'profile'|'privacy'|'notifications';type Portal='traveler'|'productMap'|'catalog';
+type CrowdLevel='low'|'moderate'|'high'|'critical';type Screen='home'|'search'|'map'|'quiet'|'alert'|'filters'|'plan'|'itinerary'|'place'|'experiences'|'experience'|'datetime'|'booking'|'confirmed'|'bookings'|'points'|'impact'|'profile'|'privacy'|'notifications';type Portal='traveler'|'productMap'|'catalog';
 type Booking={id:string;experienceTitle?:string;date?:string;time:string;guests:number;amount:number;status:string};type Experience={id:string;title:string;price:number;capacity?:number;rating:string;category:string;image:string;subtitle:string;duration:string};type Place={id:string;name:string;category:string;zone:string;status:string;crowd:string;capacity:number;visits:number;lat:number;lng:number};type Crowd={id:string;name:string;level:string;score:number;wait:string;lat:number;lng:number;source:string};type Slot={id:string;experienceId:string;operatorId:string;day:string;time:string;available:boolean;capacity:number;booked:number};type PublicMap={nodes:{id:string;name:string;type:string;lat:number;lng:number}[];routes:{id:string;name:string;node_ids:string[];published:boolean}[]};type SettingsState={name:string;language:string;crowd_alerts:boolean;location_sharing:boolean;accessibility:string;travel_pace:string;dark_mode:boolean};
 type TripItem={time:string;end_time:string;title:string;category:string;location:string;duration_minutes:number;estimated_cost:number;crowd_strategy:string;reason:string;transport_to_next:string;notes:string};type TripDay={day:number;date:string;theme:string;estimated_cost:number;items:TripItem[]};type TripPlan={title:string;summary:string;destinations:string[];currency:string;total_estimated_cost:number;assumptions:string[];days:TripDay[]};
 const images={heritage:'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=82',craft:'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=900&q=82',food:'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=82',city:'https://images.unsplash.com/photo-1514222134-b57cbb8ce073?auto=format&fit=crop&w=900&q=82'};const imageFor=(c:string)=>c==='Craft'?images.craft:c==='Food'?images.food:c==='Art'?images.city:images.heritage;const crowdInfo:Record<CrowdLevel,{label:string;score:number;wait:string}>={low:{label:'Low',score:28,wait:'Comfortable now'},moderate:{label:'Moderate',score:52,wait:'15–25 min'},high:{label:'High',score:78,wait:'40–50 min'},critical:{label:'Critical',score:92,wait:'Avoid for now'}};const norm=(v:string):CrowdLevel=>['low','high','critical'].includes(v.toLowerCase())?v.toLowerCase() as CrowdLevel:'moderate';const hav=(a:{lat:number;lng:number},b:{lat:number;lng:number})=>{const r=6371,d1=(b.lat-a.lat)*Math.PI/180,d2=(b.lng-a.lng)*Math.PI/180,q=Math.sin(d1/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(d2/2)**2;return 2*r*Math.asin(Math.sqrt(q))};const iso=(off:number)=>{const d=new Date();d.setDate(d.getDate()+off);return d.toISOString().slice(0,10)};
@@ -65,10 +65,10 @@ function DynamicMap({places,crowds,routes,selected,onSelect}:{places:Place[];cro
     </MapContainer>
   );
 }
-export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionId:string;user:{name:string;email:string;role:string};onSettings:()=>void;onLogout:()=>void}){const [portal,setPortal]=useState<Portal>('traveler'),[screen,setScreen]=useState<Screen>('home'),[places,setPlaces]=useState<Place[]>([]),[crowds,setCrowds]=useState<Crowd[]>([]),[slots,setSlots]=useState<Slot[]>([]),[experiences,setExperiences]=useState<Experience[]>([]),[bookings,setBookings]=useState<Booking[]>([]),[points,setPoints]=useState(650),[publicMap,setPublicMap]=useState<PublicMap>({nodes:[],routes:[]}),[settings,setSettings]=useState<SettingsState|null>(null),[selectedPlace,setSelectedPlace]=useState('place-patan'),[selectedExp,setSelectedExp]=useState<Experience|null>(null),[time,setTime]=useState(''),[guests,setGuests]=useState(2),[error,setError]=useState(''),[q,setQ]=useState(''),[filters,setFilters]=useState({crowd:'All',interest:'All',budget:5000}),[geo,setGeo]=useState<{lat:number;lng:number}|null>(null),[geoLabel,setGeoLabel]=useState('Patan pilot center'),[quietAdded,setQuietAdded]=useState<string[]>([]),[placeTab,setPlaceTab]=useState('History'),[category,setCategory]=useState('All'),[catalogPage,setCatalogPage]=useState<ProductPage|null>(null),[rewardMsg,setRewardMsg]=useState('');const [planner,setPlanner]=useState({destinations:'Patan, Bhaktapur, Kathmandu',startDate:iso(1),endDate:iso(3),dailyStart:'09:00',dailyEnd:'18:00',budget:12000,interests:'Heritage, local food, crafts',pace:'Balanced',transport:'Walk + local taxi',crowdPreference:'Avoid peak crowds',travelGroup:'Solo traveler',dietary:'Local Newari & Authentic',accessibility:'Standard walking',mustVisit:'Patan Durbar Square, Golden Temple',notes:'Prefer authentic artisan encounters and quiet spots.'});const [aiPlan,setAiPlan]=useState<TripPlan|null>(null),[aiLoading,setAiLoading]=useState(false),[aiError,setAiError]=useState('');const conn=useRef<ReturnType<typeof ws.connect>|null>(null);
+export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionId:string;user:{name:string;email:string;role:string};onSettings:()=>void;onLogout:()=>void}){const [portal,setPortal]=useState<Portal>('traveler'),[screen,setScreen]=useState<Screen>('home'),[places,setPlaces]=useState<Place[]>([]),[crowds,setCrowds]=useState<Crowd[]>([]),[slots,setSlots]=useState<Slot[]>([]),[experiences,setExperiences]=useState<Experience[]>([]),[bookings,setBookings]=useState<Booking[]>([]),[points,setPoints]=useState(650),[publicMap,setPublicMap]=useState<PublicMap>({nodes:[],routes:[]}),[settings,setSettings]=useState<SettingsState|null>(null),[selectedPlace,setSelectedPlace]=useState('place-patan'),[selectedExp,setSelectedExp]=useState<Experience|null>(null),[time,setTime]=useState(''),[guests,setGuests]=useState(2),[error,setError]=useState(''),[q,setQ]=useState(''),[filters,setFilters]=useState({crowd:'All',interest:'All',budget:5000}),[geo,setGeo]=useState<{lat:number;lng:number}|null>(null),[geoLabel,setGeoLabel]=useState('Patan pilot center'),[quietAdded,setQuietAdded]=useState<string[]>([]),[placeTab,setPlaceTab]=useState('History'),[category,setCategory]=useState('All'),[catalogPage,setCatalogPage]=useState<ProductPage|null>(null),[rewardMsg,setRewardMsg]=useState(''),[payMethod,setPayMethod]=useState('esewa'),[bookingsTab,setBookingsTab]=useState<'upcoming'|'completed'>('upcoming'),[calSelectedDate,setCalSelectedDate]=useState<number>(21),[childGuests,setChildGuests]=useState(0);const [planner,setPlanner]=useState({destinations:'Patan, Bhaktapur, Kathmandu',startDate:iso(1),endDate:iso(3),dailyStart:'09:00',dailyEnd:'18:00',budget:12000,interests:'Heritage, local food, crafts',pace:'Balanced',transport:'Walk + local taxi',crowdPreference:'Avoid peak crowds',travelGroup:'Solo traveler',dietary:'Local Newari & Authentic',accessibility:'Standard walking',mustVisit:'Patan Durbar Square, Golden Temple',notes:'Prefer authentic artisan encounters and quiet spots.'});const [aiPlan,setAiPlan]=useState<TripPlan|null>(null),[aiLoading,setAiLoading]=useState(false),[aiError,setAiError]=useState('');const conn=useRef<ReturnType<typeof ws.connect>|null>(null);
   const load=()=>api.get('/api/state',{session_id:sessionId}).then(({data})=>{setBookings(data.bookings||[]);setPoints(data.points||650);setPlaces(data.places||[]);setCrowds(data.crowdSites||[]);setSlots(data.slots||[]);setPublicMap(data.publicMap||{nodes:[],routes:[]});const ex=(data.experiences||[]).map((e:any)=>({id:e.id,title:e.title,price:Number(e.price),capacity:e.capacity,rating:String(e.rating||'New'),category:e.category,image:imageFor(e.category),subtitle:e.category==='Craft'?'Learn from a local maker':e.category==='Food'?'Taste a local kitchen experience':'Explore living heritage with a local host',duration:e.category==='Craft'?'45 min':e.category==='Food'?'60 min':'90 min'}));setExperiences(ex);setSelectedExp(old=>ex.find((x:Experience)=>x.id===old?.id)||ex[0]||null)});useEffect(()=>{load();api.get('/api/user-settings',{session_id:sessionId}).then(({data})=>{setSettings(data.settings);setPlanner(p=>({...p,pace:data.settings.travel_pace||p.pace}))});const c=ws.connect();conn.current=c;c.onMessage(m=>{if(m?.type==='entity.update'&&['inventory','crowd'].includes(m.payload?.entity_type))load()});c.ready.then(()=>{if(c.connectionId){api.post('/api/subscriptions',{entity_type:'inventory',entity_id:'public',connection_id:c.connectionId});api.post('/api/subscriptions',{entity_type:'crowd',entity_id:'patan-durbar',connection_id:c.connectionId})}});return()=>c.disconnect()},[sessionId]);useEffect(()=>{const sync=()=>{const f=PAGE_LIBRARY.find(p=>p.route===location.hash||('#/product/' + p.id)===location.hash);if(f?.role==='Traveler'){setCatalogPage(f);setPortal('catalog')}else if(location.hash==='#/screens')setPortal('productMap')};sync();addEventListener('hashchange',sync);return()=>removeEventListener('hashchange',sync)},[]);
   const go=(s:Screen)=>{setPortal('traveler');setScreen(s);scrollTo({top:0,behavior:'smooth'})};const currentPlace=places.find(p=>p.id===selectedPlace)||places[0];const currentCrowd=crowds.find(c=>c.id===currentPlace?.id);const currentLevel=norm(currentCrowd?.level||currentPlace?.crowd||'Moderate');const openCatalog=(p:ProductPage)=>{setCatalogPage(p);setPortal('catalog');location.hash=p.route};const confirmBooking=async()=>{if(!selectedExp||!time)return setError('Choose an available time before booking.');setError('');try{const {data}=await api.post('/api/bookings',{session_id:sessionId,experienceId:selectedExp.id,time,guests});setBookings(data.bookings);setPoints(data.points);setSlots(data.slots);go('confirmed')}catch(err:any){setError(err?.message||'That time is no longer available.')}};const savePrivacy=async(v:boolean)=>{if(!settings)return;const next={...settings,location_sharing:v};setSettings(next);await api.put('/api/user-settings',{session_id:sessionId,settings:next})};const redeem=async(cost:number,label:string)=>{try{const {data}=await api.post('/api/rewards/redeem',{session_id:sessionId,cost,label});setPoints(data.points);setRewardMsg(label + ' redeemed. This redemption persists.')}catch(err:any){setRewardMsg(err?.message||'Unable to redeem.')}};const generate=async()=>{setAiLoading(true);setAiError('');try{const {data}=await api.post('/api/ai-plan',{session_id:sessionId,...planner});setAiPlan(data.plan);go('itinerary')}catch(err:any){setAiError(err?.message||'AI planner is temporarily unavailable.')}finally{setAiLoading(false)}};
-  function Frame({children}:{children:React.ReactNode}){const show=['home'].includes(screen);return <div className='mobile-shell'><div className='mobile-content'>{children}</div>{show&&<button className='quiet-fab' onClick={()=>go('quiet')}><Leaf/>Quiet nearby</button>}<nav className='mobile-nav'>{([['home','Home',<Home/>],['map','Map',<MapPin/>],['plan','Journey',<Route/>],['bookings','Bookings',<CalendarDays/>],['profile','Profile',<User/>]] as [Screen,string,React.ReactNode][]).map(([s,l,i])=><button key={s} className={screen===s?'active':''} onClick={()=>go(s)}>{i}<span>{l}</span></button>)}</nav></div>}
+  function Frame({children}:{children:React.ReactNode}){const show=['home'].includes(screen);return <div className='mobile-shell'><div className='mobile-content'>{children}</div>{show&&<button className='quiet-fab' onClick={()=>go('quiet')}><Leaf/>Quiet nearby</button>}<nav className='mobile-nav'>{([['home','Home',<Home/>],['map','Map',<MapPin/>],['plan','Journey',<Compass/>],['experiences','Marketplace',<Store/>],['profile','Profile',<User/>]] as [Screen,string,React.ReactNode][]).map(([s,l,i])=><button key={s} className={screen===s?'active':''} onClick={()=>go(s)}>{i}<span>{l}</span></button>)}</nav></div>}
  function Header({title,back='home',right}:{title:string;back?:Screen;right?:React.ReactNode}){return <header className='phone-header'><button onClick={()=>go(back)}><ArrowLeft/></button><strong>{title}</strong><div>{right}</div></header>}
  function HomeView(){
   const low = crowds.filter(c=>c.level==='Low').length || 12;
@@ -86,9 +86,6 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
         </header>
 
         <div className='greeting-banner'>
-          <div className='greeting-tag'>
-            <span>✨</span> Patan Heritage Explorer
-          </div>
           <h1>Namaste, {user?.name || 'Aarav'}! 👋</h1>
           <p>Where shall we explore today?</p>
         </div>
@@ -572,58 +569,165 @@ function ExperiencesView(){
 
 function ExperienceView(){
   if(!selectedExp) return null;
-  const available=slots.filter(s=>s.experienceId===selectedExp.id&&s.day==='Today'&&s.available&&s.booked<s.capacity);
   return (
     <Frame>
-      <div className='detail-hero'>
+      <div className='bk-hero'>
         <img src={selectedExp.image} alt={selectedExp.title}/>
-        <div className='floating-nav'>
-          <button className='icon-btn' onClick={()=>go('experiences')}><ArrowLeft size={18}/></button>
-          <div style={{display: 'flex', gap: '8px'}}>
-            <button className='icon-btn'><Navigation size={16}/></button>
-            <button className='icon-btn'><Heart size={16}/></button>
+        <div className='bk-hero-gradient'/>
+        <div className='bk-floating-nav'>
+          <button className='bk-icon-btn' onClick={()=>go('experiences')}><ArrowLeft size={20}/></button>
+          <div style={{display:'flex',gap:'8px'}}>
+            <button className='bk-icon-btn'><Share2 size={18}/></button>
+            <button className='bk-icon-btn'><Heart size={18}/></button>
           </div>
         </div>
+        <div className='bk-hero-badge'>{selectedExp.category.toUpperCase()}</div>
+        <div className='bk-hero-counter'>1 / 12</div>
       </div>
 
-      <div className='place-detail-sheet'>
-        <h1>{selectedExp.title}</h1>
-        <p style={{fontSize: '13px', color: '#64748B', margin: '4px 0 10px'}}>{selectedExp.subtitle}</p>
-
-        <div className='facts'>
-          <Pill level='low'/>
-          <span style={{fontSize: '12px', fontWeight: '700'}}><Star size={13} fill='#D97706' color='#D97706'/> {selectedExp.rating} • Patan</span>
-          <span style={{fontSize: '12px', color: '#64748B'}}><Clock size={13}/> {selectedExp.duration} • Group Size: 2 – 8</span>
+      <div className='bk-sheet'>
+        <div className='bk-title-row'>
+          <h1 className='bk-exp-title'>{selectedExp.title}</h1>
+        </div>
+        <div className='bk-star-row'>
+          <Star size={13} fill='#F59E0B' color='#F59E0B'/>
+          <span>4.8</span>
+          <span style={{color:'#94A3B8'}}>(128 reviews)</span>
+          <span style={{color:'#94A3B8'}}>•</span>
+          <MapPin size={11} color='#94A3B8'/>
+          <span style={{color:'#94A3B8'}}>Patan Durbar Square, Lalitpur</span>
         </div>
 
-        <p style={{fontSize: '13px', color: '#475569', lineHeight: '1.55', margin: '14px 0'}}>
-          Experience traditional Newari woodcarving and create your own souvenir.
-        </p>
+        <p style={{fontSize:'13px',color:'#475569',lineHeight:'1.6',margin:'14px 0 6px'}}>Explore the living heritage of Patan with a local guide. Visit ancient temples, hidden courtyards and traditional Newari neighborhoods.</p>
+        <button className='bk-read-more'>Read more</button>
 
-        <h2 style={{fontSize: '14px', fontWeight: '800', margin: '16px 0 10px'}}>What's Included</h2>
-        <div className='facts' style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center'}}>
-          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Store size={16}/><br/>Materials</div>
-          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><User size={16}/><br/>Guide</div>
-          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Utensils size={16}/><br/>Refreshments</div>
-          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Gift size={16}/><br/>Your Creation</div>
+        <div className='bk-specs-row'>
+          <div className='bk-spec-item'><Clock size={16}/><span>{selectedExp.duration}</span><small>Duration</small></div>
+          <div className='bk-spec-item' style={{borderLeft:'1px solid #E2E8F0',borderRight:'1px solid #E2E8F0'}}><User size={16}/><span>Max 12</span><small>Group Size</small></div>
+          <div className='bk-spec-item'><Sparkles size={16}/><span>Easy</span><small>Difficulty</small></div>
         </div>
 
-        <h2 style={{fontSize: '14px', fontWeight: '800', margin: '20px 0 10px'}}>Available Time Slots</h2>
-        <div className='slots'>
-          {['10:00 AM', '11:30 AM', '2:00 PM', '4:00 PM'].map(t=>(
-            <button key={t} className={time===t?'active':''} onClick={()=>setTime(t)}>
-              {t}
-            </button>
+        <h2 className='bk-section-title'>What's Included</h2>
+        <div className='bk-included-list'>
+          {['Local Expert Guide','Heritage Entry Tickets','Traditional Snack','Bottled Water','Cultural Insights'].map(item=>(
+            <div key={item} className='bk-included-row'>
+              <Check size={14} color='#16A34A'/>
+              <span>{item}</span>
+            </div>
+          ))}
+          <button className='bk-view-more'>View more ↓</button>
+        </div>
+
+        <h2 className='bk-section-title'>Select Date</h2>
+        <button className='bk-date-trigger' onClick={()=>go('datetime')}>
+          <CalendarDays size={16} color='#0C5A56'/>
+          <span>{time ? 'Sat, 24 May • ' + time : 'Sat, 24 May'}</span>
+          <ChevronRight size={16} color='#64748B'/>
+        </button>
+
+        {time && (
+          <div className='bk-selected-banner' style={{marginTop:'12px'}}>
+            <CalendarDays size={15}/>
+            <span>Selected: <b>Sat, 24 May • {time}</b></span>
+          </div>
+        )}
+
+        <div style={{height:'120px'}}/>
+        <div className='bk-sticky-bar'>
+          <div>
+            <div className='bk-price-label'>From</div>
+            <div className='bk-price-val'>NPR {selectedExp.price.toLocaleString()}<span>/person</span></div>
+          </div>
+          <button className='bk-book-btn' onClick={()=>go('datetime')}>
+            Check Availability
+          </button>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function DateTimeView(){
+  if(!selectedExp) return null;
+  const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  // May 2025 calendar — starts on Thursday (index 4)
+  const blanks=4;
+  const totalDays=31;
+  const calDays=[...Array(blanks).fill(null),...Array.from({length:totalDays},(_,i)=>i+1)];
+  const selectedDay=calSelectedDate||21;
+  const expSlots = slots.filter(s => s.experienceId === selectedExp.id && s.available);
+  const displaySlots = expSlots.length > 0 ? expSlots : [
+    {id:'mock-1', experienceId: selectedExp.id, operatorId: '', day: 'Today', time: '10:00 AM', available: true, capacity: 10, booked: 2},
+    {id:'mock-2', experienceId: selectedExp.id, operatorId: '', day: 'Today', time: '02:00 PM', available: true, capacity: 10, booked: 8}
+  ];
+  const selectedTime=time;
+  return (
+    <Frame>
+      <div className='bk-step-bar'>
+        <button className='bk-step-back' onClick={()=>go('experience')}><ArrowLeft size={18}/></button>
+        <span style={{fontWeight:'700',fontSize:'15px'}}>Select Date &amp; Time</span>
+        <div/>
+      </div>
+
+      <div className='bk-body'>
+        {/* Month navigation */}
+        <div className='bk-cal-header'>
+          <button className='bk-cal-nav'><ArrowLeft size={16}/></button>
+          <span className='bk-cal-month'>May 2025</span>
+          <button className='bk-cal-nav'><ArrowRight size={16}/></button>
+        </div>
+
+        {/* Day headers */}
+        <div className='bk-cal-grid'>
+          {days.map(d=><div key={d} className='bk-cal-day-label'>{d}</div>)}
+          {calDays.map((d,i)=>(
+            d===null
+              ? <div key={'blank-'+i}/>
+              : <button
+                  key={d}
+                  className={'bk-cal-day'+(d===selectedDay?' active':'')+(d<18?' disabled':'')}
+                  onClick={()=>{if(d>=18)setCalSelectedDate(d)}}
+                >{d}</button>
           ))}
         </div>
 
-        <div className='sticky-buy'>
-          <div>
-            <strong style={{fontSize: '16px', display: 'block'}}>NPR {selectedExp.price}</strong>
-            <span style={{fontSize: '11px', color: '#64748B'}}>/ person</span>
-          </div>
-          <Primary disabled={!time} onClick={()=>go('booking')}>Book Now</Primary>
+        {/* Time slots */}
+        <div className='bk-slot-header' style={{marginTop:'20px'}}>
+          <h3 className='bk-card-title' style={{margin:0}}>Available Time Slots</h3>
+          <div className='bk-live-dot'><span/> Slots update in real-time</div>
         </div>
+
+        <div className='bk-timeslot-list'>
+          {displaySlots.map((slot)=>{
+            const seats = slot.capacity - slot.booked;
+            const isActive = selectedTime === slot.time;
+            return (
+              <button key={slot.id} className={'bk-timeslot-row'+(isActive?' active':'')} onClick={()=>setTime(slot.time)}>
+                <div className='bk-timeslot-info'>
+                  <span className='bk-timeslot-time'>{slot.time}</span>
+                  <span className={'bk-timeslot-seats'+(seats<=3?' warn':'')}>{seats} seats left</span>
+                </div>
+                <div className={'bk-radio'+(isActive?' checked':'')}/>
+              </button>
+            );
+          })}
+        </div>
+
+        {time && (
+          <div className='bk-selected-banner'>
+            <CalendarDays size={15}/>
+            <span>Selected: <b>Sat, {selectedDay} May • {time}</b></span>
+          </div>
+        )}
+
+        <button
+          className={'bk-pay-btn'+((!time)?'':'')} 
+          style={{marginTop:'8px'}}
+          onClick={()=>{if(time)go('booking')}}
+          disabled={!time}
+        >
+          Continue
+        </button>
       </div>
     </Frame>
   );
@@ -631,77 +735,240 @@ function ExperienceView(){
 
 function BookingView(){
   if(!selectedExp) return null;
+  const svcFee=100;
+  const total=(selectedExp.price*guests)+svcFee;
   return (
     <Frame>
-      <Header title='Review booking' back='experience'/>
-      <div className='phone-body'>
-        <div className='booking-product'>
-          <img src={selectedExp.image} alt=''/>
-          <div>
+      {/* Step indicator */}
+      <div className='bk-step-bar'>
+        <button className='bk-step-back' onClick={()=>go('experience')}><ArrowLeft size={18}/></button>
+        <div className='bk-steps'>
+          <div className='bk-step done'><span>1</span><small>Details</small></div>
+          <div className='bk-step-line done'/>
+          <div className='bk-step active'><span>2</span><small>Traveller</small></div>
+          <div className='bk-step-line'/>
+          <div className='bk-step'><span>3</span><small>Payment</small></div>
+        </div>
+      </div>
+
+      <div className='bk-body'>
+        {/* Mini booking summary */}
+        <div className='bk-summary-card'>
+          <img src={selectedExp.image} alt={selectedExp.title} className='bk-summary-img'/>
+          <div className='bk-summary-info'>
             <strong>{selectedExp.title}</strong>
-            <span>{time || '10:00 AM'}</span>
+            <span>Sat, 24 May 2025 • {time||'08:00 AM'}</span>
+            <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
+              <Pill level='low'/>
+            </div>
           </div>
         </div>
-        <div className='stepper'>
-          <span>Guests</span>
-          <div>
-            <button onClick={()=>setGuests(Math.max(1,guests-1))}><Minus size={14}/></button>
-            <b>{guests}</b>
-            <button onClick={()=>setGuests(Math.min(12,guests+1))}><Plus size={14}/></button>
+
+        {/* Guest counter */}
+        <div className='bk-section-card'>
+          <h3 className='bk-card-title'>Travellers</h3>
+          <div className='bk-counter-row'>
+            <div>
+              <div style={{fontSize:'13px',fontWeight:'600'}}>Adults</div>
+              <div style={{fontSize:'11px',color:'#64748B'}}>(12+ years)</div>
+            </div>
+            <div className='bk-counter'>
+              <button onClick={()=>setGuests(Math.max(1,guests-1))} className='bk-counter-btn'><Minus size={14}/></button>
+              <span className='bk-counter-val'>{guests}</span>
+              <button onClick={()=>setGuests(Math.min(12,guests+1))} className='bk-counter-btn'><Plus size={14}/></button>
+            </div>
           </div>
         </div>
-        <div className='price-row'>
-          <span>Total</span>
-          <b>NPR {(selectedExp.price*guests).toLocaleString()}</b>
+
+        {/* Traveller info form */}
+        <div className='bk-section-card'>
+          <h3 className='bk-card-title'>Traveller Information</h3>
+          <div className='bk-form'>
+            <div className='bk-field'>
+              <label>Full Name (as in ID)</label>
+              <input type='text' defaultValue='Aarav Sharma' placeholder='Full Name'/>
+            </div>
+            <div className='bk-field'>
+              <label>Email</label>
+              <input type='email' defaultValue='aarav@gmail.com' placeholder='Email address'/>
+            </div>
+            <div className='bk-field'>
+              <label>Phone Number</label>
+              <div className='bk-phone-input'>
+                <span>🇳🇵</span>
+                <input type='tel' defaultValue='+977 9841234567' placeholder='Phone'/>
+              </div>
+            </div>
+            <div className='bk-field'>
+              <label>Special Requests (Optional)</label>
+              <textarea rows={3} placeholder='Any dietary restrictions or special requests?'/>
+            </div>
+          </div>
         </div>
-        <div className='soft-banner'>
-          <ShieldCheck size={18}/>
-          <p>Prototype checkout: no real payment is processed. Price is recalculated server-side.</p>
+
+        {/* Marketplace Provider / Operator Profile */}
+        <div className='bk-section-card' style={{background:'#F8FAFC', border:'1px solid #E2E8F0', padding:'16px'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+            <img src='https://i.pravatar.cc/100?img=33' alt='Operator' style={{width:'48px', height:'48px', borderRadius:'50%', objectFit:'cover', border:'2px solid #fff', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}} />
+            <div style={{flex:1}}>
+              <h4 style={{margin:0, fontSize:'15px', color:'#1E293B', fontWeight:'700'}}>Patan Heritage Artisans</h4>
+              <p style={{margin:0, fontSize:'13px', color:'#64748B', marginTop:'2px'}}>Verified YatraLink Local Operator</p>
+            </div>
+            <button style={{background:'#fff', color:'#0F172A', border:'1px solid #CBD5E1', padding:'6px 12px', borderRadius:'6px', fontSize:'13px', fontWeight:'600', cursor:'pointer'}}>View Store</button>
+          </div>
+          <div style={{marginTop:'12px', paddingTop:'12px', borderTop:'1px solid #E2E8F0', display:'flex', gap:'16px', fontSize:'13px', color:'#475569'}}>
+            <div style={{display:'flex', alignItems:'center', gap:'4px'}}><Star size={14} color="#EAB308" fill="#EAB308"/> 4.9 (120 reviews)</div>
+            <div style={{display:'flex', alignItems:'center', gap:'4px'}}><Check size={14} color="#10B981"/> 100% Response Rate</div>
+          </div>
         </div>
-        {error&&<div className='form-error'>{error}</div>}
-        <Primary onClick={confirmBooking}>Confirm booking</Primary>
+
+        {/* Payment methods */}
+        <div className='bk-section-card'>
+          <h3 className='bk-card-title'>Select Payment Method</h3>
+          {[
+            {id:'esewa',label:'eSewa',icon:'💚',color:'#3BB054'},
+            {id:'khalti',label:'Khalti',icon:'💜',color:'#5C2D91'},
+            {id:'card',label:'Card / Visa / Mastercard',icon:'💳',color:'#1A56DB'},
+            {id:'imepay',label:'IME Pay',icon:'🟠',color:'#F97316'},
+          ].map(m=>(
+            <button key={m.id} className={'bk-pay-method' + (payMethod===m.id?' active':'')} onClick={()=>setPayMethod(m.id)}>
+              <span className='bk-pay-icon'>{m.icon}</span>
+              <span className='bk-pay-label'>{m.label}</span>
+              <div className={'bk-radio' + (payMethod===m.id?' checked':'')}/>
+            </button>
+          ))}
+          <div className='bk-secure-note'>
+            <ShieldCheck size={15} color='#16A34A'/>
+            <span>Your payment is <b>encrypted and 100% secure.</b></span>
+          </div>
+        </div>
+
+        {/* Price summary */}
+        <div className='bk-section-card'>
+          <h3 className='bk-card-title'>Price Summary</h3>
+          <div className='bk-price-summary'>
+            <div className='bk-price-line'>
+              <span>NPR {selectedExp.price.toLocaleString()} × {guests} {guests===1?'Adult':'Adults'}</span>
+              <span>NPR {(selectedExp.price*guests).toLocaleString()}</span>
+            </div>
+            <div className='bk-price-line'>
+              <span>Service Fee</span>
+              <span>NPR {svcFee}</span>
+            </div>
+            <div className='bk-price-divider'/>
+            <div className='bk-price-line total'>
+              <span>Total Amount</span>
+              <span>NPR {total.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {error&&<div className='bk-error'>{error}</div>}
+
+        <button className='bk-pay-btn' onClick={confirmBooking}>
+          Pay NPR {total.toLocaleString()}
+        </button>
+        <p style={{textAlign:'center',fontSize:'11px',color:'#94A3B8',margin:'8px 0 0'}}>
+          By confirming, you agree to our <span style={{color:'#0C5A56',fontWeight:'700',textDecoration:'underline'}}>Terms &amp; Conditions</span>
+        </p>
       </div>
     </Frame>
   );
 }
 
 function ConfirmedView(){
+  const bookingId='YLK-10437';
   return (
     <Frame>
-      <div className='success-page'>
-        <Check className='success-icon'/>
-        <h1>Booking confirmed</h1>
-        <p>Your booking is now shared with the assigned operator and manager workspace.</p>
-        <Primary onClick={()=>go('bookings')}>My Bookings</Primary>
+      <div className='bk-confirm-page'>
+        <div className='bk-confirm-circle'>
+          <div className='bk-confirm-ring'/>
+          <Check size={32} color='#FFFFFF' strokeWidth={3}/>
+        </div>
+        <h1 className='bk-confirm-title'>Booking Confirmed!</h1>
+        <p className='bk-confirm-sub'>Your experience is booked successfully.</p>
+
+        <div className='bk-confirm-card'>
+          <div className='bk-confirm-exp'>
+            <img src={selectedExp?.image} alt={selectedExp?.title} className='bk-confirm-img'/>
+            <div>
+              <strong>{selectedExp?.title || 'Patan Heritage Walk'}</strong>
+              <span>Sat, 24 May 2025</span>
+              <span>08:00 AM – 10:30 AM</span>
+            </div>
+          </div>
+          <div className='bk-confirm-divider'/>
+          <div className='bk-confirm-meta'>
+            <div>
+              <div className='bk-meta-label'>Booking ID</div>
+              <div className='bk-meta-val'>{bookingId}</div>
+            </div>
+            <div>
+              <div className='bk-meta-label'>Booking Date</div>
+              <div className='bk-meta-val'>21 May 2025</div>
+            </div>
+          </div>
+          <div className='bk-confirm-divider'/>
+          <div className='bk-confirm-payment'>
+            <h4>Payment Summary</h4>
+            <div className='bk-price-line'><span>Price ({guests} person{guests>1?'s':''})</span><span>NPR {((selectedExp?.price||1200)*guests).toLocaleString()}</span></div>
+            <div className='bk-price-line'><span>Service Fee</span><span>NPR 100</span></div>
+            <div className='bk-price-divider'/>
+            <div className='bk-price-line total'><span>Total Paid</span><span>NPR {((selectedExp?.price||1200)*guests+100).toLocaleString()}</span></div>
+          </div>
+        </div>
+
+        <div className='bk-confirm-note'>
+          <CalendarDays size={14} color='#0C5A56'/>
+          <span>You will receive an email confirmation with booking details.</span>
+        </div>
+
+        <button className='bk-pay-btn' onClick={()=>go('bookings')}>View My Bookings</button>
+        <button className='bk-outline-btn' onClick={()=>go('experiences')}>Explore More Experiences</button>
       </div>
     </Frame>
   );
 }
 
 function BookingsView(){
+  const tab=bookingsTab;
+  const setTab=setBookingsTab;
+  const mockBookings=[
+    {id:'b1',title:'Woodcarving Workshop',date:'12 May 2024',time:'10:00 AM – 10:53 AM',bookingId:'YL-123145',status:'Confirmed',cat:'Craft'},
+    {id:'b2',title:'Newari Lunch Experience',date:'12 May 2024',time:'1:15 PM – 2:15 PM',bookingId:'YL-123146',status:'Confirmed',cat:'Food'},
+    {id:'b3',title:'Heritage Walk (Patan)',date:'13 May 2024',time:'3:30 PM – 5:00 PM',bookingId:'YL-123247',status:'Pending',cat:'Heritage'},
+  ];
+  const list=bookings.length ? bookings.map((b,i)=>({id:b.id,title:b.experienceTitle,date:b.date||'12 May 2024',time:b.time,bookingId:'YL-'+b.id,status:b.status,cat:'Craft'})) : mockBookings;
   return (
     <Frame>
-      <Header title='My Bookings'/>
-      <div className='phone-body'>
-        <div className='chips' style={{marginBottom: '16px'}}>
-          <button className='active'>Upcoming</button>
-          <button>Completed</button>
+      <div className='bk-bookings-header'>
+        <h1 className='bk-bookings-title'>My Bookings</h1>
+        <div className='bk-tab-bar'>
+          <button className={'bk-tab'+(tab==='upcoming'?' active':'')} onClick={()=>setTab('upcoming')}>Upcoming</button>
+          <button className={'bk-tab'+(tab==='completed'?' active':'')} onClick={()=>setTab('completed')}>Completed</button>
         </div>
+      </div>
 
-        {(bookings.length ? bookings : [
-          {id:'b1',experienceTitle:'Woodcarving Workshop',date:'12 May 2024',time:'10:00 AM',status:'Confirmed'},
-          {id:'b2',experienceTitle:'Newari Lunch Experience',date:'12 May 2024',time:'1:15 PM',status:'Confirmed'},
-          {id:'b3',experienceTitle:'Heritage Walk (Patan)',date:'12 May 2024',time:'3:30 PM',status:'Pending'}
-        ]).map(b=>(
-          <article className='booking-item-card' key={b.id}>
-            <img src={imageFor('Craft')} alt=''/>
-            <div>
-              <strong>{b.experienceTitle}</strong>
-              <span>{b.date || '12 May 2024'} • {b.time}</span>
-              <span style={{fontSize: '10px', color: '#94A3B8'}}>Booking ID: YL12345</span>
+      <div className='bk-body'>
+        {list.map(b=>(
+          <div className='bk-booking-card' key={b.id}>
+            <img src={imageFor(b.cat)} alt={b.title} className='bk-booking-img'/>
+            <div className='bk-booking-info'>
+              <div className='bk-booking-top'>
+                <strong>{b.title}</strong>
+                <span className={'bk-status-chip ' + b.status.toLowerCase()}>{b.status}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'5px',margin:'4px 0'}}>
+                <CalendarDays size={12} color='#64748B'/>
+                <span style={{fontSize:'11px',color:'#64748B'}}>{b.date} • {b.time}</span>
+              </div>
+              <div style={{fontSize:'10px',color:'#94A3B8'}}>Booking ID: {b.bookingId}</div>
+              <div className='bk-booking-actions'>
+                <button className='bk-action-link'>View Details</button>
+                {b.status==='Confirmed'&&<button className='bk-action-link danger'>Cancel</button>}
+              </div>
             </div>
-            <span className={'status-badge ' + b.status.toLowerCase()}>{b.status}</span>
-          </article>
+          </div>
         ))}
       </div>
     </Frame>
@@ -1026,4 +1293,4 @@ function ProductMap(){
   );
 }
 
- if(portal==='productMap')return <ProductMap/>;if(portal==='catalog'&&catalogPage)return <ProductScreenRenderer page={catalogPage} pages={PAGE_LIBRARY.filter(p=>p.role==='Traveler')} onBack={()=>{setPortal('productMap');location.hash='#/screens'}} onOpen={openCatalog} crowdLevel={currentLevel} crowdLabel={crowdInfo[currentLevel].label} crowdWait={currentCrowd?.wait||crowdInfo[currentLevel].wait} onOpenCore={t=>go(t as Screen)}/>;if(screen==='home')return <HomeView/>;if(screen==='search')return <SearchView/>;if(screen==='filters')return <FiltersView/>;if(screen==='map')return <MapView/>;if(screen==='alert')return <AlertView/>;if(screen==='quiet')return <QuietView/>;if(screen==='place')return <PlaceView/>;if(screen==='experiences')return <ExperiencesView/>;if(screen==='experience')return <ExperienceView/>;if(screen==='booking')return <BookingView/>;if(screen==='confirmed')return <ConfirmedView/>;if(screen==='bookings')return <BookingsView/>;if(screen==='points')return <PointsView/>;if(screen==='impact')return <ImpactView/>;if(screen==='privacy')return <PrivacyView/>;if(screen==='notifications')return <NotificationsView/>;if(screen==='plan')return <PlanView/>;if(screen==='itinerary')return <ItineraryView/>;return <ProfileView/>}
+ if(portal==='productMap')return <ProductMap/>;if(portal==='catalog'&&catalogPage)return <ProductScreenRenderer page={catalogPage} pages={PAGE_LIBRARY.filter(p=>p.role==='Traveler')} onBack={()=>{setPortal('productMap');location.hash='#/screens'}} onOpen={openCatalog} crowdLevel={currentLevel} crowdLabel={crowdInfo[currentLevel].label} crowdWait={currentCrowd?.wait||crowdInfo[currentLevel].wait} onOpenCore={t=>go(t as Screen)}/>;if(screen==='home')return <HomeView/>;if(screen==='search')return <SearchView/>;if(screen==='filters')return <FiltersView/>;if(screen==='map')return <MapView/>;if(screen==='alert')return <AlertView/>;if(screen==='quiet')return <QuietView/>;if(screen==='place')return <PlaceView/>;if(screen==='experiences')return <ExperiencesView/>;if(screen==='experience')return <ExperienceView/>;if(screen==='datetime')return <DateTimeView/>;if(screen==='booking')return <BookingView/>;if(screen==='confirmed')return <ConfirmedView/>;if(screen==='bookings')return <BookingsView/>;if(screen==='points')return <PointsView/>;if(screen==='impact')return <ImpactView/>;if(screen==='privacy')return <PrivacyView/>;if(screen==='notifications')return <NotificationsView/>;if(screen==='plan')return <PlanView/>;if(screen==='itinerary')return <ItineraryView/>;return <ProfileView/>}
