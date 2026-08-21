@@ -1,6 +1,7 @@
 import { useEffect,useRef,useState } from 'react';
 import { api,ws } from './lib/platform';
-import { MapContainer,TileLayer,CircleMarker,Polyline,Popup } from 'react-leaflet';
+import { MapContainer,TileLayer,Polyline,Marker } from 'react-leaflet';
+import L from 'leaflet';
 import { ArrowLeft,ArrowRight,Bell,Bookmark,CalendarDays,Check,CheckCircle2,ChevronRight,CircleDollarSign,Clock,Compass,Filter,Gift,Grid3X3,Heart,HelpCircle,Home,Landmark,Leaf,LogOut,MapPinned,MapPin,Minus,Navigation,Palette,Plus,Route,Search,Settings,Share2,ShieldCheck,SlidersHorizontal,Sparkles,Star,Store,User,Users,Utensils,X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';import './yatralink.css';
 import { PAGE_LIBRARY,type ProductPage } from './pageLibrary';import ProductScreenRenderer from './ProductScreenRenderer';
@@ -9,7 +10,63 @@ type Booking={id:string;experienceTitle?:string;date?:string;time:string;guests:
 type TripItem={time:string;end_time:string;title:string;category:string;location:string;duration_minutes:number;estimated_cost:number;crowd_strategy:string;reason:string;transport_to_next:string;notes:string};type TripDay={day:number;date:string;theme:string;estimated_cost:number;items:TripItem[]};type TripPlan={title:string;summary:string;destinations:string[];currency:string;total_estimated_cost:number;assumptions:string[];days:TripDay[]};
 const images={heritage:'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=82',craft:'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=900&q=82',food:'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=82',city:'https://images.unsplash.com/photo-1514222134-b57cbb8ce073?auto=format&fit=crop&w=900&q=82'};const imageFor=(c:string)=>c==='Craft'?images.craft:c==='Food'?images.food:c==='Art'?images.city:images.heritage;const crowdInfo:Record<CrowdLevel,{label:string;score:number;wait:string}>={low:{label:'Low',score:28,wait:'Comfortable now'},moderate:{label:'Moderate',score:52,wait:'15–25 min'},high:{label:'High',score:78,wait:'40–50 min'},critical:{label:'Critical',score:92,wait:'Avoid for now'}};const norm=(v:string):CrowdLevel=>['low','high','critical'].includes(v.toLowerCase())?v.toLowerCase() as CrowdLevel:'moderate';const hav=(a:{lat:number;lng:number},b:{lat:number;lng:number})=>{const r=6371,d1=(b.lat-a.lat)*Math.PI/180,d2=(b.lng-a.lng)*Math.PI/180,q=Math.sin(d1/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(d2/2)**2;return 2*r*Math.asin(Math.sqrt(q))};const iso=(off:number)=>{const d=new Date();d.setDate(d.getDate()+off);return d.toISOString().slice(0,10)};
 function Logo(){return <div className='brand'><span><MapPinned/></span><strong>Yatra<b>Link</b></strong></div>}function Pill({level}:{level:CrowdLevel}){return <span className={`crowd-pill crowd-pill--${level}`}><i/>{crowdInfo[level].label}</span>}function Primary({children,onClick,disabled}:{children:React.ReactNode;onClick?:()=>void;disabled?:boolean}){return <button className='btn primary' onClick={onClick} disabled={disabled}>{children}</button>}function Secondary({children,onClick}:{children:React.ReactNode;onClick?:()=>void}){return <button className='btn secondary' onClick={onClick}>{children}</button>}
-function DynamicMap({places,crowds,routes,selected,onSelect}:{places:Place[];crowds:Crowd[];routes:PublicMap;selected:string;onSelect:(id:string)=>void}){const colors:Record<CrowdLevel,string>={low:'#2e9f5b',moderate:'#dfa21d',high:'#d9514e',critical:'#25292d'};const pts=(ids:string[])=>ids.map(id=>routes.nodes.find(n=>n.id===id)).filter(Boolean).map(n=>[n!.lat,n!.lng] as [number,number]);return <MapContainer center={[27.6737,85.3245]} zoom={15} className='map-canvas'><TileLayer attribution='&copy; OpenStreetMap contributors' url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'/>{routes.routes.map(r=>{const p=pts(r.node_ids);return p.length>1?<Polyline key={r.id} positions={p} pathOptions={{color:'#0c716f',weight:5,dashArray:'8 7'}}/>:null})}{places.map(p=>{const c=crowds.find(x=>x.id===p.id),l=norm(c?.level||p.crowd);return <CircleMarker key={p.id} center={[p.lat,p.lng]} radius={selected===p.id?12:9} eventHandlers={{click:()=>onSelect(p.id)}} pathOptions={{color:'#fff',fillColor:colors[l],fillOpacity:1,weight:3}}><Popup><strong>{p.name}</strong><br/>{crowdInfo[l].label} · {c?.wait||crowdInfo[l].wait}</Popup></CircleMarker>})}</MapContainer>}
+function DynamicMap({places,crowds,routes,selected,onSelect}:{places:Place[];crowds:Crowd[];routes:PublicMap;selected:string;onSelect:(id:string)=>void}){
+  const userLat = 27.6715;
+  const userLng = 85.3225;
+  const pts=(ids:string[])=>ids.map(id=>routes.nodes.find(n=>n.id===id)).filter(Boolean).map(n=>[n!.lat,n!.lng] as [number,number]);
+
+  return (
+    <MapContainer center={[27.6737,85.3245]} zoom={15} zoomControl={false} className='map-canvas'>
+      <TileLayer attribution='&copy; OpenStreetMap contributors' url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'/>
+      
+      {routes.routes.map(r=>{
+        const p=pts(r.node_ids);
+        return p.length>1?<Polyline key={r.id} positions={p} pathOptions={{color:'#0c716f',weight:4,dashArray:'6 6'}}/>:null;
+      })}
+
+      <Marker position={[userLat, userLng]} icon={L.divIcon({
+        className: 'user-location-pin',
+        html: `<div class="user-pulse-dot"><div class="user-halo"></div><div class="user-core"></div></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })} />
+
+      {places.map(p=>{
+        const c=crowds.find(x=>x.id===p.id);
+        const l=norm(c?.level||p.crowd);
+        const isSel=selected===p.id;
+        const badgeColor = l === 'high' ? '#EF4444' : l === 'moderate' ? '#F59E0B' : '#22C55E';
+        const badgeText = l === 'high' ? 'High Crowd' : l === 'moderate' ? 'Moderate Crowd' : 'Low Crowd';
+        
+        const pinIcon = L.divIcon({
+          className: 'custom-map-pin',
+          html: `
+            <div class="map-pin-card ${isSel ? 'selected' : ''}">
+              <img src="${imageFor(p.category)}" alt="${p.name}" class="pin-img"/>
+              <div class="pin-text">
+                <strong class="pin-title">${p.name}</strong>
+                <span class="pin-badge" style="background: ${badgeColor}15; color: ${badgeColor}; border: 1px solid ${badgeColor}30;">
+                  <i style="background: ${badgeColor};"></i> ${badgeText}
+                </span>
+              </div>
+            </div>
+          `,
+          iconSize: [160, 48],
+          iconAnchor: [80, 24]
+        });
+
+        return (
+          <Marker 
+            key={p.id} 
+            position={[p.lat, p.lng]} 
+            icon={pinIcon} 
+            eventHandlers={{click: ()=>onSelect(p.id)}}
+          />
+        );
+      })}
+    </MapContainer>
+  );
+}
 export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionId:string;user:{name:string;email:string;role:string};onSettings:()=>void;onLogout:()=>void}){const [portal,setPortal]=useState<Portal>('traveler'),[screen,setScreen]=useState<Screen>('home'),[places,setPlaces]=useState<Place[]>([]),[crowds,setCrowds]=useState<Crowd[]>([]),[slots,setSlots]=useState<Slot[]>([]),[experiences,setExperiences]=useState<Experience[]>([]),[bookings,setBookings]=useState<Booking[]>([]),[points,setPoints]=useState(650),[publicMap,setPublicMap]=useState<PublicMap>({nodes:[],routes:[]}),[settings,setSettings]=useState<SettingsState|null>(null),[selectedPlace,setSelectedPlace]=useState('place-patan'),[selectedExp,setSelectedExp]=useState<Experience|null>(null),[time,setTime]=useState(''),[guests,setGuests]=useState(2),[error,setError]=useState(''),[q,setQ]=useState(''),[filters,setFilters]=useState({crowd:'All',interest:'All',budget:5000}),[geo,setGeo]=useState<{lat:number;lng:number}|null>(null),[geoLabel,setGeoLabel]=useState('Patan pilot center'),[quietAdded,setQuietAdded]=useState<string[]>([]),[placeTab,setPlaceTab]=useState('History'),[category,setCategory]=useState('All'),[catalogPage,setCatalogPage]=useState<ProductPage|null>(null),[rewardMsg,setRewardMsg]=useState('');const [planner,setPlanner]=useState({destinations:'Patan, Bhaktapur, Kathmandu',startDate:iso(1),endDate:iso(3),dailyStart:'09:00',dailyEnd:'18:00',budget:12000,interests:'Heritage, local food, crafts',pace:'Balanced',transport:'Walk + local taxi',crowdPreference:'Avoid peak crowds',travelGroup:'Solo traveler',dietary:'Local Newari & Authentic',accessibility:'Standard walking',mustVisit:'Patan Durbar Square, Golden Temple',notes:'Prefer authentic artisan encounters and quiet spots.'});const [aiPlan,setAiPlan]=useState<TripPlan|null>(null),[aiLoading,setAiLoading]=useState(false),[aiError,setAiError]=useState('');const conn=useRef<ReturnType<typeof ws.connect>|null>(null);
  const load=()=>api.get('/api/state',{session_id:sessionId}).then(({data})=>{setBookings(data.bookings||[]);setPoints(data.points||650);setPlaces(data.places||[]);setCrowds(data.crowdSites||[]);setSlots(data.slots||[]);setPublicMap(data.publicMap||{nodes:[],routes:[]});const ex=(data.experiences||[]).map((e:any)=>({id:e.id,title:e.title,price:Number(e.price),capacity:e.capacity,rating:String(e.rating||'New'),category:e.category,image:imageFor(e.category),subtitle:e.category==='Craft'?'Learn from a local maker':e.category==='Food'?'Taste a local kitchen experience':'Explore living heritage with a local host',duration:e.category==='Craft'?'45 min':e.category==='Food'?'60 min':'90 min'}));setExperiences(ex);setSelectedExp(old=>ex.find((x:Experience)=>x.id===old?.id)||ex[0]||null)});useEffect(()=>{load();api.get('/api/user-settings',{session_id:sessionId}).then(({data})=>{setSettings(data.settings);setPlanner(p=>({...p,pace:data.settings.travel_pace||p.pace}))});const c=ws.connect();conn.current=c;c.onMessage(m=>{if(m?.type==='entity.update'&&['inventory','crowd'].includes(m.payload?.entity_type))load()});c.ready.then(()=>{if(c.connectionId){api.post('/api/subscriptions',{entity_type:'inventory',entity_id:'public',connection_id:c.connectionId});api.post('/api/subscriptions',{entity_type:'crowd',entity_id:'patan-durbar',connection_id:c.connectionId})}});return()=>c.disconnect()},[sessionId]);useEffect(()=>{const sync=()=>{const f=PAGE_LIBRARY.find(p=>p.route===location.hash||`#/product/${p.id}`===location.hash);if(f?.role==='Traveler'){setCatalogPage(f);setPortal('catalog')}else if(location.hash==='#/screens')setPortal('productMap')};sync();addEventListener('hashchange',sync);return()=>removeEventListener('hashchange',sync)},[]);
  const go=(s:Screen)=>{setPortal('traveler');setScreen(s);scrollTo({top:0,behavior:'smooth'})};const currentPlace=places.find(p=>p.id===selectedPlace)||places[0];const currentCrowd=crowds.find(c=>c.id===currentPlace?.id);const currentLevel=norm(currentCrowd?.level||currentPlace?.crowd||'Moderate');const openCatalog=(p:ProductPage)=>{setCatalogPage(p);setPortal('catalog');location.hash=p.route};const confirmBooking=async()=>{if(!selectedExp||!time)return setError('Choose an available time before booking.');setError('');try{const {data}=await api.post('/api/bookings',{session_id:sessionId,experienceId:selectedExp.id,time,guests});setBookings(data.bookings);setPoints(data.points);setSlots(data.slots);go('confirmed')}catch(err:any){setError(err?.message||'That time is no longer available.')}};const savePrivacy=async(v:boolean)=>{if(!settings)return;const next={...settings,location_sharing:v};setSettings(next);await api.put('/api/user-settings',{session_id:sessionId,settings:next})};const redeem=async(cost:number,label:string)=>{try{const {data}=await api.post('/api/rewards/redeem',{session_id:sessionId,cost,label});setPoints(data.points);setRewardMsg(`${label} redeemed. This redemption persists.`)}catch(err:any){setRewardMsg(err?.message||'Unable to redeem.')}};const generate=async()=>{setAiLoading(true);setAiError('');try{const {data}=await api.post('/api/ai-plan',{session_id:sessionId,...planner});setAiPlan(data.plan);go('itinerary')}catch(err:any){setAiError(err?.message||'AI planner is temporarily unavailable.')}finally{setAiLoading(false)}};
