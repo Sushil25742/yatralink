@@ -25,40 +25,72 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
         <header>
           <Logo/>
           <button onClick={()=>go('notifications')}>
-            <Bell/>
+            <Bell size={20}/>
             <span className='badge-dot'/>
           </button>
         </header>
 
-        <h1>Namaste, Traveler! 👋</h1>
-        <p>Where shall we explore today?</p>
+        <div className='greeting-banner'>
+          <div className='greeting-tag'>
+            <span>✨</span> Patan Heritage Explorer
+          </div>
+          <h1>Namaste, {user?.name || 'Aarav'}! 👋</h1>
+          <p>Where shall we explore today?</p>
+        </div>
 
-        <button className='search-box' onClick={()=>go('search')}>
-          <Search size={18}/>
-          <span>Search places, experiences...</span>
-          <span className='target-btn'><Navigation size={16}/></span>
-        </button>
+        <div className='search-box-wrap'>
+          <button className='search-box' onClick={()=>go('search')}>
+            <Search size={18} color='#0C5A56'/>
+            <span>Search places, experiences...</span>
+            <span className='target-btn'><Navigation size={15}/></span>
+          </button>
+        </div>
+
+        <div className='quick-filter-scroll'>
+          {[
+            ['All', '🔥'],
+            ['Heritage', '🏛️'],
+            ['Food', '🍱'],
+            ['Crafts', '🎨'],
+            ['Spiritual', '🕉️'],
+            ['Quiet', '🌿']
+          ].map(([cat, icon]) => (
+            <button
+              key={cat}
+              className={filters.interest === cat || (cat==='All'&&filters.interest==='All') ? 'active' : ''}
+              onClick={()=>{
+                if (cat === 'Quiet') { go('quiet'); }
+                else { setFilters({...filters, interest: cat}); go('search'); }
+              }}
+            >
+              <span>{icon}</span> {cat}
+            </button>
+          ))}
+        </div>
 
         <section>
           <div className='section-title'>
             <h2>Live Crowd Overview</h2>
-            <button onClick={()=>go('map')}>See all</button>
+            <button onClick={()=>go('map')}>See map <ChevronRight size={14}/></button>
           </div>
           <div className='crowd-grid'>
             <button onClick={()=>{setFilters({...filters,crowd:'Low'});go('search')}} className='crowd-card low'>
               <div className='icon-circle'><Users size={16}/></div>
               <strong>Low</strong>
               <span>{low} Places</span>
+              <span className='wait-tag'>&lt; 15m wait</span>
             </button>
             <button onClick={()=>{setFilters({...filters,crowd:'Moderate'});go('search')}} className='crowd-card moderate'>
               <div className='icon-circle'><Users size={16}/></div>
               <strong>Moderate</strong>
               <span>{mod} Places</span>
+              <span className='wait-tag'>15–30m wait</span>
             </button>
             <button onClick={()=>{setFilters({...filters,crowd:'High'});go('search')}} className='crowd-card high'>
               <div className='icon-circle'><Users size={16}/></div>
               <strong>High</strong>
               <span>{high} Places</span>
+              <span className='wait-tag'>40–50m wait</span>
             </button>
           </div>
         </section>
@@ -66,7 +98,7 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
         <section>
           <div className='section-title'>
             <h2>Top Picks Near You</h2>
-            <button onClick={()=>go('quiet')}>See all</button>
+            <button onClick={()=>go('quiet')}>Quiet nearby <ChevronRight size={14}/></button>
           </div>
           <div className='place-grid'>
             {(places.length ? places : [
@@ -75,11 +107,15 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
               {id:'place-mangal',name:'Mangal Bazaar',category:'Craft',crowd:'Low'}
             ]).slice(0,3).map((p, idx)=>(
               <button key={p.id} className='place-card-item' onClick={()=>{setSelectedPlace(p.id);go('map')}}>
-                <img src={imageFor(p.category)} alt={p.name}/>
+                <div className='img-wrap'>
+                  <img src={imageFor(p.category)} alt={p.name}/>
+                  <div className='img-badge'>
+                    <Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/>
+                  </div>
+                </div>
                 <div className='card-content'>
                   <strong>{p.name}</strong>
-                  <Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/>
-                  <span className='dist'><MapPin size={10}/> {idx === 0 ? '2.1 km' : idx === 1 ? '1.5 km' : '1.2 km'}</span>
+                  <span className='dist'><MapPin size={11} color='#0C5A56'/> {idx === 0 ? '2.1 km away' : idx === 1 ? '1.5 km away' : '1.2 km away'}</span>
                 </div>
               </button>
             ))}
@@ -89,7 +125,7 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
         <section>
           <div className='section-title'>
             <h2>Local Experiences</h2>
-            <button onClick={()=>go('experiences')}>See all</button>
+            <button onClick={()=>go('experiences')}>See all <ChevronRight size={14}/></button>
           </div>
           <div className='experience-grid'>
             {(experiences.length ? experiences : [
@@ -98,24 +134,31 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
               {id:'exp-3',title:'Heritage Walk (Patan)',price:600,duration:'90 min',rating:'4.7 (80)',image:images.heritage,category:'Culture',subtitle:'Guided historical tour',capacity:15}
             ]).slice(0,3).map(e=>(
               <button key={e.id} className='exp-card-item' onClick={()=>{setSelectedExp(e as Experience);go('experience')}}>
-                <img src={e.image} alt={e.title}/>
+                <div className='img-wrap'>
+                  <img src={e.image} alt={e.title}/>
+                </div>
                 <div className='card-content'>
                   <strong>{e.title}</strong>
                   <div className='price-line'>NPR {e.price} • {e.duration}</div>
-                  <div className='rating-line'><Star size={11} fill='#D97706'/> {e.rating}</div>
+                  <div className='rating-line'><Star size={11} fill='#D97706' color='#D97706'/> {e.rating}</div>
                 </div>
               </button>
             ))}
           </div>
 
           <button className='ai-cta' onClick={()=>go('plan')}>
-            <Sparkles size={20}/>
+            <div className='sparkle-icon'><Sparkles size={22}/></div>
             <div>
-              <strong>Plan your trip with AI</strong>
-              <span>Grounded in current YatraLink inventory.</span>
+              <strong>Plan your trip with AI ✨</strong>
+              <span>Custom itinerary grounded in live inventory &amp; crowds</span>
             </div>
-            <ArrowRight size={18}/>
+            <ArrowRight size={20}/>
           </button>
+
+          <div className='live-radar-ticker'>
+            <span className='ticker-dot'/>
+            <span><b>Live Radar:</b> Patan Durbar Square crowd pressure is High. Golden Temple is currently calm.</span>
+          </div>
         </section>
       </div>
     </Frame>
