@@ -1,7 +1,7 @@
 import { useEffect,useRef,useState } from 'react';
 import { api,ws } from './lib/platform';
 import { MapContainer,TileLayer,CircleMarker,Polyline,Popup } from 'react-leaflet';
-import { ArrowLeft,ArrowRight,Bell,Bookmark,CalendarDays,Check,CheckCircle2,ChevronRight,CircleDollarSign,Clock,Compass,Filter,Gift,Grid3X3,Heart,HelpCircle,Home,Landmark,Leaf,LogOut,MapPinned,MapPin,Minus,Navigation,Palette,Plus,Route,Search,Settings,ShieldCheck,SlidersHorizontal,Sparkles,Star,Store,User,Users,Utensils,X } from 'lucide-react';
+import { ArrowLeft,ArrowRight,Bell,Bookmark,CalendarDays,Check,CheckCircle2,ChevronRight,CircleDollarSign,Clock,Compass,Filter,Gift,Grid3X3,Heart,HelpCircle,Home,Landmark,Leaf,LogOut,MapPinned,MapPin,Minus,Navigation,Palette,Plus,Route,Search,Settings,Share2,ShieldCheck,SlidersHorizontal,Sparkles,Star,Store,User,Users,Utensils,X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';import './yatralink.css';
 import { PAGE_LIBRARY,type ProductPage } from './pageLibrary';import ProductScreenRenderer from './ProductScreenRenderer';
 type CrowdLevel='low'|'moderate'|'high'|'critical';type Screen='home'|'search'|'map'|'quiet'|'alert'|'filters'|'plan'|'itinerary'|'place'|'experiences'|'experience'|'booking'|'confirmed'|'bookings'|'points'|'impact'|'profile'|'privacy'|'notifications';type Portal='traveler'|'productMap'|'catalog';
@@ -171,36 +171,44 @@ function SearchView(){
   const es=experiences.filter(e=>(!x||`${e.title} ${e.category}`.toLowerCase().includes(x))&&e.price<=filters.budget&&(filters.interest==='All'||e.category===filters.interest));
   return (
     <Frame>
-      <Header title='Search'/>
+      <Header title='Search & Explore'/>
       <div className='phone-body'>
         <label className='search-input'>
-          <Search size={18}/>
-          <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder='Search places, experiences...'/>
+          <Search size={18} color='#0C5A56'/>
+          <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder='Search places, experiences, crafts...'/>
+          {q && <button style={{border:0, background:'transparent'}} onClick={()=>setQ('')}><X size={16} color='#94A3B8'/></button>}
         </label>
+
         <button className='filter-summary' onClick={()=>go('filters')}>
-          <Filter size={12}/> Filters · {filters.crowd} · NPR ≤ {filters.budget}
+          <Filter size={13}/> Filters Active: {filters.crowd} Crowd • {filters.interest} • NPR ≤ {filters.budget}
         </button>
-        <h2>Places</h2>
+
+        <div className='section-title'>
+          <h2>Heritage Destinations ({ps.length})</h2>
+        </div>
         {ps.map(p=>(
           <button className='result-row' key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}>
-            <MapPin size={18}/>
+            <MapPin size={18} color='#0C5A56'/>
             <div>
               <strong>{p.name}</strong>
               <span>{p.category} · {p.zone}</span>
             </div>
             <Pill level={norm(p.crowd)}/>
-            <ChevronRight size={16}/>
+            <ChevronRight size={16} color='#94A3B8'/>
           </button>
         ))}
-        <h2>Experiences</h2>
+
+        <div className='section-title' style={{marginTop: '24px'}}>
+          <h2>Local Experiences ({es.length})</h2>
+        </div>
         {es.map(e=>(
           <button className='result-row' key={e.id} onClick={()=>{setSelectedExp(e);go('experience')}}>
-            <Store size={18}/>
+            <Store size={18} color='#0C5A56'/>
             <div>
               <strong>{e.title}</strong>
               <span>{e.category} · NPR {e.price}</span>
             </div>
-            <ChevronRight size={16}/>
+            <ChevronRight size={16} color='#94A3B8'/>
           </button>
         ))}
       </div>
@@ -211,26 +219,32 @@ function SearchView(){
 function FiltersView(){
   return (
     <Frame>
-      <Header title='Filters' back='search' right={<button style={{border:0, background:'transparent'}} onClick={()=>go('search')}><X size={18}/></button>}/>
+      <Header title='Search Filters' back='search' right={<button style={{border:0, background:'transparent'}} onClick={()=>go('search')}><X size={20}/></button>}/>
       <div className='phone-body'>
-        <h3>Crowd Level</h3>
+        <h3 style={{fontSize: '14px', fontWeight: '800', marginBottom: '10px'}}>Live Crowd Density</h3>
         <div className='chips'>
           {['Low','Moderate','High','All'].map(x=>(
             <button className={filters.crowd===x?'active':''} key={x} onClick={()=>setFilters({...filters,crowd:x})}>{x}</button>
           ))}
         </div>
-        <h3>Interests</h3>
+
+        <h3 style={{fontSize: '14px', fontWeight: '800', margin: '20px 0 10px'}}>Interest Category</h3>
         <div className='chips'>
           {['Heritage','Food','Crafts','Spiritual','Culture','Art & History','Nature'].map(x=>(
             <button className={filters.interest===x?'active':''} key={x} onClick={()=>setFilters({...filters,interest:x})}>{x}</button>
           ))}
         </div>
-        <label className='range'>
-          Budget Range: NPR 0 – NPR {filters.budget}+
-          <input type='range' min='500' max='5000' step='500' value={filters.budget} onChange={e=>setFilters({...filters,budget:Number(e.target.value)})}/>
-        </label>
-        <div className='two-actions' style={{marginTop: '24px'}}>
-          <Secondary onClick={()=>setFilters({crowd:'All',interest:'All',budget:5000})}>Reset</Secondary>
+
+        <div style={{margin: '24px 0'}}>
+          <h3 style={{fontSize: '14px', fontWeight: '800', marginBottom: '8px'}}>Budget Range (NPR)</h3>
+          <div style={{fontSize: '12px', color: '#64748B', fontWeight: '600', marginBottom: '10px'}}>
+            Up to <b>NPR {filters.budget.toLocaleString()}</b> per experience
+          </div>
+          <input type='range' min='500' max='5000' step='500' style={{width: '100%', accentColor: 'var(--teal-primary)'}} value={filters.budget} onChange={e=>setFilters({...filters,budget:Number(e.target.value)})}/>
+        </div>
+
+        <div className='dual-actions-bar' style={{marginTop: '28px'}}>
+          <Secondary onClick={()=>setFilters({crowd:'All',interest:'All',budget:5000})}>Reset All</Secondary>
           <Primary onClick={()=>go('search')}>Apply Filters</Primary>
         </div>
       </div>
@@ -244,9 +258,9 @@ function MapView(){
       <div className='map-page'>
         <div className='map-top'>
           <button className='search-bar' onClick={()=>go('search')}>
-            <Search size={16}/>
-            <span>Search places, experiences...</span>
-            <SlidersHorizontal size={16} style={{marginLeft: 'auto'}}/>
+            <Search size={18} color='#0C5A56'/>
+            <span>Search places, experiences, map pins...</span>
+            <SlidersHorizontal size={18} color='#64748B' style={{marginLeft: 'auto'}}/>
           </button>
           <div className='cat-pills'>
             {['All','Heritage','Food','Crafts','Spiritual'].map(c=>(
@@ -254,17 +268,27 @@ function MapView(){
             ))}
           </div>
         </div>
+
+        <div className='map-controls-stack'>
+          <button className='map-ctrl-btn' onClick={()=>setGeoLabel('GPS Recalibrated')} title='Re-center map'><Navigation size={18}/></button>
+          <button className='map-ctrl-btn' onClick={()=>go('quiet')} title='Quiet nearby spots'><Leaf size={18}/></button>
+        </div>
+
         <DynamicMap places={places} crowds={crowds} routes={publicMap} selected={selectedPlace} onSelect={id=>setSelectedPlace(id)}/>
+
         <div className='map-sheet'>
-          <div className='sheet-head'>
+          <div className='map-sheet-hero'>
+            <img src={imageFor(currentPlace?.category || 'Heritage')} alt={currentPlace?.name}/>
             <div>
-              <h2>{currentPlace?.name||'Patan Durbar Square'}</h2>
+              <h2>{currentPlace?.name || 'Patan Durbar Square'}</h2>
               <Pill level={currentLevel}/>
+              <p>⏱ <b>Est. Wait:</b> {currentCrowd?.wait || '40 – 50 min'}</p>
             </div>
-            <Bookmark size={20} color='#64748B'/>
           </div>
-          <p>Estimated wait: {currentCrowd?.wait || '40 – 50 min'}</p>
-          <Primary onClick={()=>go('alert')}>See Alternatives</Primary>
+          <div className='dual-actions-bar' style={{margin: '12px 0 0', padding: 0, border: 0}}>
+            <Secondary onClick={()=>go('alert')}>See Alternatives</Secondary>
+            <Primary onClick={()=>go('place')}>View Details &amp; Nav</Primary>
+          </div>
         </div>
       </div>
     </Frame>
@@ -274,15 +298,23 @@ function MapView(){
 function AlertView(){
   return (
     <Frame>
-      <Header title='Crowd Alert!' back='map'/>
-      <div className='phone-body alert-sheet'>
-        <div className='alert-icon-wrap'>
-          <Users size={28}/>
+      <Header title='Crowd Alert' back='map'/>
+      <div className='phone-body'>
+        <div className='alert-hero-banner'>
+          <div className='alert-icon-ring'>
+            <Users size={32}/>
+          </div>
+          <h1>High Crowd Pressure Detected!</h1>
+          <p>
+            <b>{currentPlace?.name || 'Patan Durbar Square'}</b> currently has heavy foot traffic (~40-50 min wait). We recommend visiting one of these verified calmer spots.
+          </p>
         </div>
-        <h1>Crowd Alert!</h1>
-        <p style={{fontSize: '13px', color: '#64748B', lineHeight: '1.5', margin: '8px 0 20px'}}>
-          <b>{currentPlace?.name || 'Patan Durbar Square'}</b> is currently very crowded. Would you like to explore these better alternatives?
-        </p>
+
+        <div className='section-title'>
+          <h2>Recommended Alternatives</h2>
+          <button onClick={()=>go('quiet')}>View map <ChevronRight size={14}/></button>
+        </div>
+
         {(places.filter(p=>p.id!==currentPlace?.id).slice(0,3).length ? places.filter(p=>p.id!==currentPlace?.id).slice(0,3) : [
           {id:'p1',name:'Woodcarving Workshop',category:'Craft',crowd:'Low'},
           {id:'p2',name:'Golden Temple (Patan)',category:'Spiritual',crowd:'Moderate'},
@@ -293,14 +325,15 @@ function AlertView(){
             <div>
               <strong>{p.name}</strong>
               <Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/>
-              <span>{idx === 0 ? '5 min walk • 450 m' : idx === 1 ? '7 min walk • 600 m' : '8 min walk • 650 m'}</span>
+              <span>⏱ {idx === 0 ? '5 min walk • 450 m' : idx === 1 ? '7 min walk • 600 m' : '8 min walk • 650 m'}</span>
             </div>
-            <ChevronRight size={16} color='#94A3B8'/>
+            <ChevronRight size={18} color='#94A3B8'/>
           </button>
         ))}
-        <div style={{marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
-          <Primary onClick={()=>go('quiet')}>Update My Journey</Primary>
-          <Secondary onClick={()=>go('map')}>Maybe Later</Secondary>
+
+        <div style={{marginTop: '28px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+          <Primary onClick={()=>go('quiet')}>Update My Journey ✨</Primary>
+          <Secondary onClick={()=>go('map')}>Keep Original Stop</Secondary>
         </div>
       </div>
     </Frame>
@@ -309,32 +342,48 @@ function AlertView(){
 
 function QuietView(){
   const origin=geo||{lat:27.6738,lng:85.3232};
-  const rows=places.map(p=>{const km=hav(origin,p),c=crowds.find(x=>x.id===p.id);return{...p,km,level:norm(c?.level||p.crowd),wait:c?.wait||'Estimate unavailable',source:c?.source||'Demo estimate'}}).filter(p=>['low','moderate'].includes(p.level)).sort((a,b)=>(a.level==='low'?0:1)-(b.level==='low'?0:1)||a.km-b.km);
-  const locate=()=>navigator.geolocation?.getCurrentPosition(p=>{setGeo({lat:p.coords.latitude,lng:p.coords.longitude});setGeoLabel('Using your current location')},()=>setGeoLabel('Location not shared · Patan pilot center'));
+  const rows=places.map(p=>{const km=hav(origin,p),c=crowds.find(x=>x.id===p.id);return{...p,km,level:norm(c?.level||p.crowd),wait:c?.wait||'Estimate unavailable',source:c?.source||'Live Sensor Stream'}}).filter(p=>['low','moderate'].includes(p.level)).sort((a,b)=>(a.level==='low'?0:1)-(b.level==='low'?0:1)||a.km-b.km);
+  const locate=()=>navigator.geolocation?.getCurrentPosition(p=>{setGeo({lat:p.coords.latitude,lng:p.coords.longitude});setGeoLabel('Using your current GPS location')},()=>setGeoLabel('Patan pilot center'));
+
   return (
     <Frame>
       <Header title='Less Crowded Nearby'/>
       <div className='phone-body'>
-        <div className='quiet-intro'>
-          <Leaf size={32}/>
+        <div className='quiet-intro-card'>
+          <div className='icon-box'>
+            <Leaf size={26}/>
+          </div>
           <div>
-            <h1>Find calmer places.</h1>
-            <p>Ranked by crowd pressure, then distance.</p>
-            <small>{geoLabel}</small>
+            <h1>Find Calmer Heritage Spots</h1>
+            <p>Sorted by crowd density, then shortest distance.</p>
+            <small style={{fontSize: '10px', color: '#166534', fontWeight: '700'}}>{geoLabel}</small>
           </div>
         </div>
-        <button className='location-btn' onClick={locate}><Navigation size={14}/>Use my location</button>
+
+        <button className='btn secondary' style={{width: '100%', marginBottom: '16px'}} onClick={locate}>
+          <Navigation size={16} color='#0C5A56'/> Recalibrate GPS Location
+        </button>
+
         {rows.map(p=>(
-          <article className='quiet-row' key={p.id}>
-            <img src={imageFor(p.category)} alt=''/>
-            <div>
-              <strong>{p.name}</strong>
-              <Pill level={p.level}/>
-              <small>{p.km<1?`${Math.round(p.km*1000)} m`:`${p.km.toFixed(1)} km`} · {p.wait}</small>
+          <article className='quiet-row-card' key={p.id}>
+            <div className='quiet-row-top'>
+              <img src={imageFor(p.category)} alt={p.name}/>
+              <div>
+                <strong>{p.name}</strong>
+                <Pill level={p.level}/>
+                <span style={{fontSize: '11px', color: '#64748B', display: 'block', marginTop: '4px'}}>
+                  📍 {p.km<1?`${Math.round(p.km*1000)} m`:`${p.km.toFixed(1)} km`} • {p.wait}
+                </span>
+                <span style={{fontSize: '10px', color: '#10B981', fontWeight: '700', marginTop: '2px', display: 'block'}}>
+                  📡 {p.source}
+                </span>
+              </div>
             </div>
-            <div>
-              <button onClick={()=>{setSelectedPlace(p.id);go('map')}}>Map</button>
-              <button onClick={()=>setQuietAdded(x=>x.includes(p.id)?x:[...x,p.id])}>{quietAdded.includes(p.id)?'Added':'Add to Journey'}</button>
+            <div className='quiet-row-actions'>
+              <button onClick={()=>{setSelectedPlace(p.id);go('map')}}>Show on Map</button>
+              <button onClick={()=>setQuietAdded(x=>x.includes(p.id)?x:[...x,p.id])}>
+                {quietAdded.includes(p.id) ? '✓ Added to Journey' : '+ Add to Journey'}
+              </button>
             </div>
           </article>
         ))}
@@ -346,67 +395,89 @@ function QuietView(){
 function PlaceView(){
   return (
     <Frame>
-      <div className='detail-hero'>
-        <img src={imageFor(currentPlace?.category||'Heritage')} alt={currentPlace?.name}/>
-        <div className='floating-nav'>
-          <button className='icon-btn' onClick={()=>go('map')}><ArrowLeft size={18}/></button>
-          <div style={{display: 'flex', gap: '8px'}}>
-            <button className='icon-btn'><Navigation size={16}/></button>
-            <button className='icon-btn'><Heart size={16}/></button>
+      <div className='place-detail-container'>
+        <div className='detail-hero'>
+          <img src={imageFor(currentPlace?.category||'Heritage')} alt={currentPlace?.name}/>
+          <div className='detail-hero-gradient'/>
+          <div className='floating-nav'>
+            <button className='icon-btn' onClick={()=>go('map')}><ArrowLeft size={20}/></button>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button className='icon-btn'><Share2 size={18}/></button>
+              <button className='icon-btn'><Heart size={18}/></button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className='place-detail-sheet'>
-        <h1>{currentPlace?.name || 'Patan Durbar Square'}</h1>
-        <Pill level={currentLevel}/>
+        <div className='place-detail-sheet'>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px'}}>
+            <h1>{currentPlace?.name || 'Patan Durbar Square'}</h1>
+            <Pill level={currentLevel}/>
+          </div>
 
-        <div className='key-specs'>
-          <div>⏱ <b>Estimated wait:</b> {currentCrowd?.wait || '40 – 50 min'}</div>
-          <div>💡 <b>Best time to visit:</b> After 3:00 PM</div>
-        </div>
+          <div className='key-specs-card'>
+            <div className='key-spec-row'>
+              <Clock size={16}/>
+              <span>Estimated Wait Time: <b>{currentCrowd?.wait || '40 – 50 min'}</b></span>
+            </div>
+            <div className='key-spec-row'>
+              <Sparkles size={16}/>
+              <span>Recommended Best Time: <b>After 3:00 PM (Low Crowd)</b></span>
+            </div>
+            <div className='key-spec-row'>
+              <MapPin size={16}/>
+              <span>Location: <b>UNESCO Cultural Zone, Patan</b></span>
+            </div>
+          </div>
 
-        <p style={{fontSize: '13px', color: '#64748B', lineHeight: '1.5'}}>
-          A UNESCO World Heritage Site and the cultural heart of Patan.
-        </p>
+          <p style={{fontSize: '13px', color: '#475569', lineHeight: '1.6'}}>
+            A UNESCO World Heritage Site and the cultural heart of Patan. Features royal palaces, ancient pagoda temples, and Newari stone architecture.
+          </p>
 
-        <div className='quick-tabs'>
+          <div className='quick-tabs-bar'>
+            {[
+              ['History', <Landmark size={18}/>],
+              ['Photos', <Grid3X3 size={18}/>],
+              ['Reviews', <Star size={18}/>],
+              ['Tips', <HelpCircle size={18}/>]
+            ].map(([l, i])=>(
+              <button key={String(l)} className={placeTab===l?'active':''} onClick={()=>setPlaceTab(String(l))}>
+                {i}<span>{l}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '14px', fontSize: '12px', color: '#475569', lineHeight: '1.6', marginBottom: '20px'}}>
+            {placeTab==='History' ? 'Patan Durbar Square is one of the three Durbar Squares in the Kathmandu Valley, dating back to the Malla Kingdom era.' :
+             placeTab==='Photos' ? 'High-definition heritage photo archive verified by UNESCO conservators.' :
+             placeTab==='Reviews' ? 'Rated 4.8 / 5 by 320 travelers. "Best visited late afternoon for quiet temple strolls."' :
+             'Crowd Tip: Enter from the southern gate during lunch hours to skip gate queue.'}
+          </div>
+
+          <div className='section-title'>
+            <h2>Nearby Calmer Alternatives</h2>
+            <button onClick={()=>go('quiet')}>See all <ChevronRight size={14}/></button>
+          </div>
+
           {[
-            ['History', <Landmark size={18}/>],
-            ['Photos', <Grid3X3 size={18}/>],
-            ['Reviews 4.8', <Star size={18}/>],
-            ['Tips', <HelpCircle size={18}/>]
-          ].map(([l, i])=>(
-            <button key={String(l)} className={placeTab===l?'active':''} onClick={()=>setPlaceTab(String(l))}>
-              {i}<span>{l}</span>
+            {id:'a1',name:'Woodcarving Workshop',category:'Craft',crowd:'Low',dist:'5 min walk • 450 m'},
+            {id:'a2',name:'Golden Temple',category:'Spiritual',crowd:'Moderate',dist:'7 min walk • 600 m'},
+            {id:'a3',name:'Mangal Bazaar',category:'Craft',crowd:'Low',dist:'8 min walk • 650 m'}
+          ].map(a=>(
+            <button className='alt-row' key={a.id} onClick={()=>{setSelectedPlace(a.id);go('map')}}>
+              <img src={imageFor(a.category)} alt=''/>
+              <div>
+                <strong>{a.name}</strong>
+                <Pill level={norm(a.crowd)}/>
+                <span>{a.dist}</span>
+              </div>
+              <ChevronRight size={18} color='#94A3B8'/>
             </button>
           ))}
-        </div>
 
-        <div className='section-title'>
-          <h2>Nearby Alternatives</h2>
-          <button onClick={()=>go('quiet')}>See all</button>
-        </div>
-
-        {[
-          {id:'a1',name:'Woodcarving Workshop',category:'Craft',crowd:'Low',dist:'5 min walk • 450 m'},
-          {id:'a2',name:'Golden Temple',category:'Spiritual',crowd:'Moderate',dist:'7 min walk • 600 m'},
-          {id:'a3',name:'Mangal Bazaar',category:'Craft',crowd:'Low',dist:'8 min walk • 650 m'}
-        ].map(a=>(
-          <button className='alt-row' key={a.id} onClick={()=>{setSelectedPlace(a.id);go('map')}}>
-            <img src={imageFor(a.category)} alt=''/>
-            <div>
-              <strong>{a.name}</strong>
-              <Pill level={norm(a.crowd)}/>
-              <span>{a.dist}</span>
-            </div>
-            <ChevronRight size={16} color='#94A3B8'/>
-          </button>
-        ))}
-
-        <div className='dual-actions-bar'>
-          <Secondary onClick={()=>go('quiet')}>Add to Journey</Secondary>
-          <Primary onClick={()=>go('map')}>Navigate</Primary>
+          <div className='dual-actions-bar'>
+            <Secondary onClick={()=>go('quiet')}>Add to Journey</Secondary>
+            <Primary onClick={()=>go('map')}>Start Navigation 🧭</Primary>
+          </div>
         </div>
       </div>
     </Frame>
