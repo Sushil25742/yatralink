@@ -15,24 +15,842 @@ export default function YatraLink({sessionId,user,onSettings,onLogout}:{sessionI
  const go=(s:Screen)=>{setPortal('traveler');setScreen(s);scrollTo({top:0,behavior:'smooth'})};const currentPlace=places.find(p=>p.id===selectedPlace)||places[0];const currentCrowd=crowds.find(c=>c.id===currentPlace?.id);const currentLevel=norm(currentCrowd?.level||currentPlace?.crowd||'Moderate');const openCatalog=(p:ProductPage)=>{setCatalogPage(p);setPortal('catalog');location.hash=p.route};const confirmBooking=async()=>{if(!selectedExp||!time)return setError('Choose an available time before booking.');setError('');try{const {data}=await api.post('/api/bookings',{session_id:sessionId,experienceId:selectedExp.id,time,guests});setBookings(data.bookings);setPoints(data.points);setSlots(data.slots);go('confirmed')}catch(err:any){setError(err?.message||'That time is no longer available.')}};const savePrivacy=async(v:boolean)=>{if(!settings)return;const next={...settings,location_sharing:v};setSettings(next);await api.put('/api/user-settings',{session_id:sessionId,settings:next})};const redeem=async(cost:number,label:string)=>{try{const {data}=await api.post('/api/rewards/redeem',{session_id:sessionId,cost,label});setPoints(data.points);setRewardMsg(`${label} redeemed. This redemption persists.`)}catch(err:any){setRewardMsg(err?.message||'Unable to redeem.')}};const generate=async()=>{setAiLoading(true);setAiError('');try{const {data}=await api.post('/api/ai-plan',{session_id:sessionId,...planner});setAiPlan(data.plan);go('itinerary')}catch(err:any){setAiError(err?.message||'AI planner is temporarily unavailable.')}finally{setAiLoading(false)}};
  function Frame({children}:{children:React.ReactNode}){const show=['home','map','place'].includes(screen);return <div className='mobile-shell'><div className='mobile-content'>{children}</div>{show&&<button className='quiet-fab' onClick={()=>go('quiet')}><Leaf/>Quiet nearby</button>}<nav className='mobile-nav'>{([['home','Home',<Home/>],['map','Map',<MapPin/>],['plan','Journey',<Route/>],['bookings','Bookings',<CalendarDays/>],['profile','Profile',<User/>]] as [Screen,string,React.ReactNode][]).map(([s,l,i])=><button key={s} className={screen===s?'active':''} onClick={()=>go(s)}>{i}<span>{l}</span></button>)}</nav></div>}
  function Header({title,back='home',right}:{title:string;back?:Screen;right?:React.ReactNode}){return <header className='phone-header'><button onClick={()=>go(back)}><ArrowLeft/></button><strong>{title}</strong><div>{right}</div></header>}
- function HomeView(){const low=crowds.filter(c=>c.level==='Low').length,mod=crowds.filter(c=>c.level==='Moderate').length,high=crowds.filter(c=>['High','Critical'].includes(c.level)).length;return <Frame><div className='home-page'><header><Logo/><button onClick={()=>go('notifications')}><Bell/></button></header><h1>Namaste, {user.name}! 👋</h1><p>Explore Patan with crowd-aware timing and local experiences.</p><button className='search-box' onClick={()=>go('search')}><Search/>Search places, experiences...</button><section><div className='section-title'><h2>Live Crowd Overview</h2><button onClick={()=>go('map')}>See all</button></div><div className='crowd-grid'>{[['Low',low],['Moderate',mod],['High',high]].map(([l,n])=><button key={l} onClick={()=>{setFilters({...filters,crowd:String(l)});go('search')}} className={`crowd-card ${String(l).toLowerCase()}`}><Users/><strong>{l}</strong><span>{n} places</span></button>)}</div></section><section><div className='section-title'><h2>Top Picks in Patan</h2><button onClick={()=>go('quiet')}>Quiet nearby</button></div><div className='place-grid'>{places.slice(0,3).map(p=><button key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}><img src={imageFor(p.category)} alt=''/><strong>{p.name}</strong><Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/></button>)}</div></section><section><div className='section-title'><h2>Local Experiences</h2><button onClick={()=>go('experiences')}>See all</button></div><div className='experience-grid'>{experiences.slice(0,3).map(e=><button key={e.id} onClick={()=>{setSelectedExp(e);go('experience')}}><img src={e.image} alt=''/><strong>{e.title}</strong><span>NPR {e.price}</span></button>)}</div><button className='ai-cta' onClick={()=>go('plan')}><Sparkles/><div><strong>Plan your trip with AI</strong><span>Grounded in current YatraLink inventory.</span></div><ArrowRight/></button></section></div></Frame>}
- function SearchView(){const x=q.toLowerCase();const ps=places.filter(p=>(!x||`${p.name} ${p.category}`.toLowerCase().includes(x))&&(filters.crowd==='All'||p.crowd===filters.crowd)&&(filters.interest==='All'||p.category===filters.interest));const es=experiences.filter(e=>(!x||`${e.title} ${e.category}`.toLowerCase().includes(x))&&e.price<=filters.budget&&(filters.interest==='All'||e.category===filters.interest));return <Frame><Header title='Search'/><div className='phone-body'><label className='search-input'><Search/><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder='Golden Temple, food, craft…'/></label><button className='filter-summary' onClick={()=>go('filters')}>Filters · {filters.crowd} · NPR ≤ {filters.budget}</button><h2>Places</h2>{ps.map(p=><button className='result-row' key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}><MapPin/><div><strong>{p.name}</strong><span>{p.category} · {p.zone}</span></div><Pill level={norm(p.crowd)}/><ChevronRight/></button>)}<h2>Experiences</h2>{es.map(e=><button className='result-row' key={e.id} onClick={()=>{setSelectedExp(e);go('experience')}}><Store/><div><strong>{e.title}</strong><span>{e.category} · NPR {e.price}</span></div><ChevronRight/></button>)}</div></Frame>}
- function FiltersView(){return <Frame><Header title='Filters' back='search' right={<X/>}/><div className='phone-body'><h3>Crowd Level</h3><div className='chips'>{['All','Low','Moderate','High'].map(x=><button className={filters.crowd===x?'active':''} key={x} onClick={()=>setFilters({...filters,crowd:x})}>{x}</button>)}</div><h3>Interest</h3><div className='chips'>{['All','Heritage','Food','Craft','Spiritual','Culture','Art'].map(x=><button className={filters.interest===x?'active':''} key={x} onClick={()=>setFilters({...filters,interest:x})}>{x}</button>)}</div><label className='range'>Budget up to NPR {filters.budget}<input type='range' min='500' max='5000' step='500' value={filters.budget} onChange={e=>setFilters({...filters,budget:Number(e.target.value)})}/></label><Primary onClick={()=>go('search')}>Apply Filters</Primary></div></Frame>}
- function MapView(){return <Frame><div className='map-page'><div className='map-top'><button onClick={()=>go('search')}><Search/>Search places</button></div><DynamicMap places={places} crowds={crowds} routes={publicMap} selected={selectedPlace} onSelect={id=>setSelectedPlace(id)}/><div className='map-sheet'><h2>{currentPlace?.name||'Patan'}</h2><Pill level={currentLevel}/><p><b>{currentCrowd?.source||'Demo estimate'}</b> · {currentCrowd?.wait||crowdInfo[currentLevel].wait}</p><Primary onClick={()=>go('alert')}>See Alternatives</Primary></div></div></Frame>}
- function AlertView(){return <Frame><Header title='Crowd Alert' back='map'/><div className='phone-body centered'><Users className='big-icon'/><h1>{currentPlace?.name}</h1><p>Current pressure is <b>{crowdInfo[currentLevel].label}</b>. Consider a calmer nearby option.</p>{places.filter(p=>p.id!==currentPlace?.id&&['Low','Moderate'].includes(crowds.find(c=>c.id===p.id)?.level||p.crowd)).slice(0,3).map(p=><button className='alternative-row' key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}><img src={imageFor(p.category)} alt=''/><div><strong>{p.name}</strong><Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/></div><ChevronRight/></button>)}</div></Frame>}
- function QuietView(){const origin=geo||{lat:27.6738,lng:85.3232};const rows=places.map(p=>{const km=hav(origin,p),c=crowds.find(x=>x.id===p.id);return{...p,km,level:norm(c?.level||p.crowd),wait:c?.wait||'Estimate unavailable',source:c?.source||'Demo estimate'}}).filter(p=>['low','moderate'].includes(p.level)).sort((a,b)=>(a.level==='low'?0:1)-(b.level==='low'?0:1)||a.km-b.km);const locate=()=>navigator.geolocation?.getCurrentPosition(p=>{setGeo({lat:p.coords.latitude,lng:p.coords.longitude});setGeoLabel('Using your current location')},()=>setGeoLabel('Location not shared · Patan pilot center'));return <Frame><Header title='Less Crowded Nearby'/><div className='phone-body'><div className='quiet-intro'><Leaf/><div><h1>Find calmer places.</h1><p>Ranked by crowd pressure, then distance.</p><small>{geoLabel}</small></div></div><button className='location-btn' onClick={locate}><Navigation/>Use my location</button>{rows.map(p=><article className='quiet-row' key={p.id}><img src={imageFor(p.category)} alt=''/><div><strong>{p.name}</strong><Pill level={p.level}/><small>{p.km<1?`${Math.round(p.km*1000)} m`:`${p.km.toFixed(1)} km`} · {p.wait}</small><p>{p.source}</p></div><div><button onClick={()=>{setSelectedPlace(p.id);go('map')}}>Map</button><button onClick={()=>setQuietAdded(x=>x.includes(p.id)?x:[...x,p.id])}>{quietAdded.includes(p.id)?'Added':'Add to Journey'}</button></div></article>)}</div></Frame>}
- function PlaceView(){return <Frame><div className='detail-hero'><img src={imageFor(currentPlace?.category||'Heritage')} alt={currentPlace?.name}/><button onClick={()=>go('map')}><ArrowLeft/></button></div><div className='phone-body'><h1>{currentPlace?.name}</h1><Pill level={currentLevel}/><p className='lead'>A YatraLink destination record in the Patan pilot. Crowd provenance is shown separately from heritage content.</p><div className='quick-actions'>{[['History',<Landmark/>],['Photos',<Grid3X3/>],['Reviews',<Star/>],['Tips',<HelpCircle/>]].map(([l,i])=><button className={placeTab===l?'active':''} key={String(l)} onClick={()=>setPlaceTab(String(l))}>{i}{l}</button>)}</div><div className='info-panel'>{placeTab==='History'?'Verified heritage content belongs to the manager content workflow.':placeTab==='Photos'?'Prototype media gallery and moderation flow.':placeTab==='Reviews'?'Place-level aggregation is an extension; experience reviews are live in Operator Studio.':'Use the crowd signal and Quiet Nearby before deciding when to visit.'}</div><div className='two-actions'><Secondary onClick={()=>go('quiet')}>Quiet Nearby</Secondary><Primary onClick={()=>go('map')}>Navigate</Primary></div></div></Frame>}
- function ExperiencesView(){return <Frame><Header title='Living Heritage'/><div className='phone-body'><div className='chips'>{['All','Craft','Food','Culture','Art'].map(x=><button className={category===x?'active':''} onClick={()=>setCategory(x)} key={x}>{x}</button>)}</div><div className='experience-list'>{experiences.filter(e=>category==='All'||e.category===category).map(e=><button key={e.id} onClick={()=>{setSelectedExp(e);setTime('');go('experience')}}><img src={e.image} alt={e.title}/><div><strong>{e.title}</strong><span>{e.category} · NPR {e.price}</span><small>★ {e.rating}</small></div></button>)}</div></div></Frame>}
- function ExperienceView(){if(!selectedExp)return null;const available=slots.filter(s=>s.experienceId===selectedExp.id&&s.day==='Today'&&s.available&&s.booked<s.capacity);return <Frame><div className='detail-hero'><img src={selectedExp.image} alt={selectedExp.title}/><button onClick={()=>go('experiences')}><ArrowLeft/></button></div><div className='phone-body'><h1>{selectedExp.title}</h1><p className='lead'>{selectedExp.subtitle}. Bookable slots come directly from the operator availability system.</p><div className='facts'><span><Star/> {selectedExp.rating}</span><span><Clock/> {selectedExp.duration}</span><span><Users/> Capacity {selectedExp.capacity}</span></div><h2>Available Today</h2><div className='slots'>{available.map(s=><button className={time===s.time?'active':''} key={s.id} onClick={()=>setTime(s.time)}>{s.time}<small>{s.capacity-s.booked} left</small></button>)}</div>{!available.length&&<div className='form-error'>No slots are currently bookable.</div>}<div className='sticky-buy'><strong>NPR {selectedExp.price} / person</strong><Primary disabled={!time} onClick={()=>go('booking')}>Book Now</Primary></div></div></Frame>}
- function BookingView(){if(!selectedExp)return null;return <Frame><Header title='Review booking' back='experience'/><div className='phone-body'><div className='booking-product'><img src={selectedExp.image} alt=''/><div><strong>{selectedExp.title}</strong><span>{time}</span></div></div><div className='stepper'><span>Guests</span><div><button onClick={()=>setGuests(Math.max(1,guests-1))}><Minus/></button><b>{guests}</b><button onClick={()=>setGuests(Math.min(12,guests+1))}><Plus/></button></div></div><div className='price-row'><span>Total</span><b>NPR {(selectedExp.price*guests).toLocaleString()}</b></div><div className='soft-banner'><ShieldCheck/><p>Prototype checkout: no real payment is processed. Price is recalculated server-side.</p></div>{error&&<div className='form-error'>{error}</div>}<Primary onClick={confirmBooking}>Confirm booking</Primary></div></Frame>}
- function ConfirmedView(){return <Frame><div className='success-page'><Check className='success-icon'/><h1>Booking confirmed</h1><p>Your booking is now shared with the assigned operator and manager workspace.</p><Primary onClick={()=>go('bookings')}>My Bookings</Primary></div></Frame>}
- function BookingsView(){return <Frame><Header title='My Bookings'/><div className='phone-body'>{bookings.length?bookings.map(b=><article className='booking-row' key={b.id}><CalendarDays/><div><strong>{b.experienceTitle}</strong><span>{b.date||''} · {b.time} · {b.guests} guests</span></div><b>{b.status}</b></article>):<div className='empty'><CalendarDays/><h2>No bookings yet</h2><Primary onClick={()=>go('experiences')}>Browse experiences</Primary></div>}</div></Frame>}
- function PointsView(){return <Frame><Header title='Heritage Points' back='profile'/><div className='phone-body'><div className='points-card'><span>Your balance</span><strong>{points}</strong></div>{rewardMsg&&<div className='reward-msg'>{rewardMsg}</div>}<div className='reward-row'><Utensils/><div><strong>Local café discount</strong><span>100 points</span></div><button disabled={points<100} onClick={()=>redeem(100,'Local café discount')}>Redeem</button></div><div className='reward-row'><Palette/><div><strong>Craft workshop discount</strong><span>200 points</span></div><button disabled={points<200} onClick={()=>redeem(200,'Craft workshop discount')}>Redeem</button></div></div></Frame>}
- function ImpactView(){const active=bookings.filter(b=>!['Cancelled','Refunded'].includes(b.status));return <Frame><Header title='My Impact' back='profile'/><div className='phone-body'><div className='impact-grid'><article><CircleDollarSign/><b>NPR {active.reduce((s,b)=>s+b.amount,0).toLocaleString()}</b><span>Booked locally</span></article><article><Store/><b>{active.length}</b><span>Cultural bookings</span></article><article><Route/><b>{quietAdded.length}</b><span>Quieter stops added</span></article></div><div className='soft-banner'><ShieldCheck/><p>These are prototype-account metrics. No conservation transfer is claimed.</p></div></div></Frame>}
- function ProfileView(){const ini=user.name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();return <Frame><div className='profile-top'><div className='avatar'>{ini}</div><div><h1>{user.name}</h1><span>{points} points</span></div><button onClick={onSettings}><Settings/></button></div><div className='profile-menu'><button onClick={()=>go('bookings')}><CalendarDays/>My bookings<ChevronRight/></button><button onClick={()=>go('points')}><Gift/>Heritage Points<ChevronRight/></button><button onClick={()=>go('impact')}><Leaf/>My impact<ChevronRight/></button><button onClick={()=>go('privacy')}><ShieldCheck/>Privacy<ChevronRight/></button><button onClick={()=>go('notifications')}><Bell/>Notifications<ChevronRight/></button><button onClick={onSettings}><Settings/>Account settings<ChevronRight/></button><button onClick={()=>{setPortal('productMap');location.hash='#/screens'}}><Grid3X3/>149 Traveler prototype screens<ChevronRight/></button><button className='logout' onClick={onLogout}><LogOut/>Log out<ChevronRight/></button></div></Frame>}
- function PrivacyView(){return <Frame><Header title='Privacy' back='profile'/><div className='phone-body'><h1>Privacy by default.</h1><p className='lead'>The same persisted account preference is used here and in Settings.</p><div className='setting-toggle'><div><strong>Anonymous location sharing</strong><span>Opt in to location-aware discovery.</span></div><button className={settings?.location_sharing?'on':''} onClick={()=>savePrivacy(!settings?.location_sharing)}><i/></button></div><div className='simple-row'><Bell/>Crowd alerts <b>{settings?.crowd_alerts?'On':'Off'}</b></div></div></Frame>}
- function NotificationsView(){return <Frame><Header title='Notifications' back='profile'/><div className='phone-body'><div className='demo-banner'><ShieldCheck/><div><strong>SHOWCASE DEMO</strong><span>These example notifications demonstrate the intended event types.</span></div></div>{[['Crowd changed','Patan crowd pressure changed.'],['Booking update','Your operator can update attendance status.'],['Points earned','Bookings add Heritage Points.']].map(([a,b])=><div className='notification-row' key={a}><i/><div><strong>{a}</strong><p>{b}</p></div></div>)}</div></Frame>}
- function PlanView(){return <Frame><Header title='AI Trip Planner'/><div className='phone-body'><h1>Plan your Nepal journey</h1><p className='lead'>Custom AI itinerary tailored to your travel group, budget, pace, daily schedule, and cultural interests.</p><div className='planner-form'><div className='form-section-title'>1. Trip Overview</div><label>Destinations<textarea value={planner.destinations} onChange={e=>setPlanner({...planner,destinations:e.target.value})} placeholder='e.g. Patan, Bhaktapur, Kathmandu'/></label><div className='pair'><label>Start Date<input type='date' value={planner.startDate} onChange={e=>setPlanner({...planner,startDate:e.target.value})}/></label><label>End Date<input type='date' value={planner.endDate} onChange={e=>setPlanner({...planner,endDate:e.target.value})}/></label></div><label>Budget (NPR)<input type='number' value={planner.budget} onChange={e=>setPlanner({...planner,budget:Number(e.target.value)})}/></label><div className='form-section-title'>2. Travel Style & Group</div><div className='pair'><label>Travel Group<select value={planner.travelGroup} onChange={e=>setPlanner({...planner,travelGroup:e.target.value})}><option>Solo traveler</option><option>Couple</option><option>Family with kids</option><option>Group of friends</option><option>Cultural research tour</option></select></label><label>Travel Pace<select value={planner.pace} onChange={e=>setPlanner({...planner,pace:e.target.value})}><option>Relaxed</option><option>Balanced</option><option>Fast-paced</option></select></label></div><div className='pair'><label>Transport Mode<select value={planner.transport} onChange={e=>setPlanner({...planner,transport:e.target.value})}><option>Walk + local taxi</option><option>Walking only (Eco)</option><option>Private car & driver</option><option>Local microbus / Rickshaw</option></select></label><label>Crowd Strategy<select value={planner.crowdPreference} onChange={e=>setPlanner({...planner,crowdPreference:e.target.value})}><option>Avoid peak crowds</option><option>Balanced</option><option>Famous places first</option></select></label></div><div className='form-section-title'>3. Timing & Dining</div><div className='pair'><label>Daily Start<select value={planner.dailyStart} onChange={e=>setPlanner({...planner,dailyStart:e.target.value})}><option>08:00 AM</option><option>09:00 AM</option><option>10:00 AM</option></select></label><label>Daily Wrap-up<select value={planner.dailyEnd} onChange={e=>setPlanner({...planner,dailyEnd:e.target.value})}><option>17:00 (5 PM)</option><option>18:00 (6 PM)</option><option>20:00 (8 PM)</option></select></label></div><label>Dietary Preference<select value={planner.dietary} onChange={e=>setPlanner({...planner,dietary:e.target.value})}><option>Local Newari & Authentic</option><option>Vegetarian / Vegan friendly</option><option>Cafés & Traditional Tea Houses</option><option>Flexible / Any</option></select></label><div className='form-section-title'>4. Interests & Specific Requests</div><label>Cultural Interests<textarea value={planner.interests} onChange={e=>setPlanner({...planner,interests:e.target.value})} placeholder='e.g. Heritage, woodcarving, Newari food, monasteries'/></label><label>Must-Visit Places<textarea value={planner.mustVisit} onChange={e=>setPlanner({...planner,mustVisit:e.target.value})} placeholder='e.g. Patan Durbar Square, Golden Temple'/></label><label>Special Notes & Accessibility<textarea value={planner.notes} onChange={e=>setPlanner({...planner,notes:e.target.value})} placeholder='e.g. Step-free preferred, photography focus, early morning prayer access'/></label></div>{aiError&&<div className='form-error'>{aiError}</div>}<Primary disabled={aiLoading} onClick={generate}>{aiLoading?'Building personalized timeline…':'Generate grounded AI timeline'}</Primary></div></Frame>}
- function ItineraryView(){if(!aiPlan)return <Frame><Header title='Journey' back='plan'/><div className='empty'><Sparkles/><h2>No AI journey yet</h2></div></Frame>;return <Frame><Header title='AI Journey' back='plan'/><div className='phone-body'><div className='journey-hero'><h1>{aiPlan.title}</h1><p>{aiPlan.summary}</p><strong>{aiPlan.currency} {Math.round(aiPlan.total_estimated_cost).toLocaleString()} estimated</strong></div>{aiPlan.days.map(d=><section className='day' key={d.day}><h2>Day {d.day} · {d.theme}</h2>{d.items.map((it,i)=><article className='timeline-row' key={i}><time>{it.time}</time><i>{i+1}</i><div><strong>{it.title}</strong><span>{it.location} · {it.duration_minutes} min</span><p>{it.reason}</p><small>{it.crowd_strategy}</small></div></article>)}</section>)}</div></Frame>}
- function ProductMap(){const [query,setQuery]=useState('');const rows=PAGE_LIBRARY.filter(p=>p.role==='Traveler'&&`${p.title} ${p.module}`.toLowerCase().includes(query.toLowerCase()));return <main className='product-map'><header><button onClick={()=>go('profile')}><ArrowLeft/>Back</button><Logo/><h1>149 Traveler Prototype Screens</h1><p>Role-protected Admin and Operator workspaces are not exposed here.</p></header><div className='library'><label><Search/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder='Search traveler screens'/></label><div className='page-grid'>{rows.map(p=><button key={p.id} onClick={()=>openCatalog(p)}><span>{p.module}</span><strong>{p.title}</strong><small>{p.route}</small><ArrowRight/></button>)}</div></div></main>}
+ function HomeView(){
+  const low = crowds.filter(c=>c.level==='Low').length || 12;
+  const mod = crowds.filter(c=>c.level==='Moderate').length || 18;
+  const high = crowds.filter(c=>['High','Critical'].includes(c.level)).length || 7;
+  return (
+    <Frame>
+      <div className='home-page'>
+        <header>
+          <Logo/>
+          <button onClick={()=>go('notifications')}>
+            <Bell/>
+            <span className='badge-dot'/>
+          </button>
+        </header>
+
+        <h1>Namaste, Traveler! 👋</h1>
+        <p>Where shall we explore today?</p>
+
+        <button className='search-box' onClick={()=>go('search')}>
+          <Search size={18}/>
+          <span>Search places, experiences...</span>
+          <span className='target-btn'><Navigation size={16}/></span>
+        </button>
+
+        <section>
+          <div className='section-title'>
+            <h2>Live Crowd Overview</h2>
+            <button onClick={()=>go('map')}>See all</button>
+          </div>
+          <div className='crowd-grid'>
+            <button onClick={()=>{setFilters({...filters,crowd:'Low'});go('search')}} className='crowd-card low'>
+              <div className='icon-circle'><Users size={16}/></div>
+              <strong>Low</strong>
+              <span>{low} Places</span>
+            </button>
+            <button onClick={()=>{setFilters({...filters,crowd:'Moderate'});go('search')}} className='crowd-card moderate'>
+              <div className='icon-circle'><Users size={16}/></div>
+              <strong>Moderate</strong>
+              <span>{mod} Places</span>
+            </button>
+            <button onClick={()=>{setFilters({...filters,crowd:'High'});go('search')}} className='crowd-card high'>
+              <div className='icon-circle'><Users size={16}/></div>
+              <strong>High</strong>
+              <span>{high} Places</span>
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <div className='section-title'>
+            <h2>Top Picks Near You</h2>
+            <button onClick={()=>go('quiet')}>See all</button>
+          </div>
+          <div className='place-grid'>
+            {(places.length ? places : [
+              {id:'place-patan',name:'Patan Durbar Square',category:'Heritage',crowd:'High'},
+              {id:'place-golden',name:'Golden Temple (Patan)',category:'Spiritual',crowd:'Moderate'},
+              {id:'place-mangal',name:'Mangal Bazaar',category:'Craft',crowd:'Low'}
+            ]).slice(0,3).map((p, idx)=>(
+              <button key={p.id} className='place-card-item' onClick={()=>{setSelectedPlace(p.id);go('map')}}>
+                <img src={imageFor(p.category)} alt={p.name}/>
+                <div className='card-content'>
+                  <strong>{p.name}</strong>
+                  <Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/>
+                  <span className='dist'><MapPin size={10}/> {idx === 0 ? '2.1 km' : idx === 1 ? '1.5 km' : '1.2 km'}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <div className='section-title'>
+            <h2>Local Experiences</h2>
+            <button onClick={()=>go('experiences')}>See all</button>
+          </div>
+          <div className='experience-grid'>
+            {(experiences.length ? experiences : [
+              {id:'exp-1',title:'Woodcarving Workshop',price:800,duration:'45 min',rating:'4.8 (120)',image:images.craft,category:'Craft',subtitle:'Learn from a local maker',capacity:8},
+              {id:'exp-2',title:'Newari Lunch Experience',price:1200,duration:'60 min',rating:'4.9 (96)',image:images.food,category:'Food',subtitle:'Taste authentic cuisine',capacity:10},
+              {id:'exp-3',title:'Heritage Walk (Patan)',price:600,duration:'90 min',rating:'4.7 (80)',image:images.heritage,category:'Culture',subtitle:'Guided historical tour',capacity:15}
+            ]).slice(0,3).map(e=>(
+              <button key={e.id} className='exp-card-item' onClick={()=>{setSelectedExp(e as Experience);go('experience')}}>
+                <img src={e.image} alt={e.title}/>
+                <div className='card-content'>
+                  <strong>{e.title}</strong>
+                  <div className='price-line'>NPR {e.price} • {e.duration}</div>
+                  <div className='rating-line'><Star size={11} fill='#D97706'/> {e.rating}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <button className='ai-cta' onClick={()=>go('plan')}>
+            <Sparkles size={20}/>
+            <div>
+              <strong>Plan your trip with AI</strong>
+              <span>Grounded in current YatraLink inventory.</span>
+            </div>
+            <ArrowRight size={18}/>
+          </button>
+        </section>
+      </div>
+    </Frame>
+  );
+}
+
+function SearchView(){
+  const x=q.toLowerCase();
+  const ps=places.filter(p=>(!x||`${p.name} ${p.category}`.toLowerCase().includes(x))&&(filters.crowd==='All'||p.crowd===filters.crowd)&&(filters.interest==='All'||p.category===filters.interest));
+  const es=experiences.filter(e=>(!x||`${e.title} ${e.category}`.toLowerCase().includes(x))&&e.price<=filters.budget&&(filters.interest==='All'||e.category===filters.interest));
+  return (
+    <Frame>
+      <Header title='Search'/>
+      <div className='phone-body'>
+        <label className='search-input'>
+          <Search size={18}/>
+          <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder='Search places, experiences...'/>
+        </label>
+        <button className='filter-summary' onClick={()=>go('filters')}>
+          <Filter size={12}/> Filters · {filters.crowd} · NPR ≤ {filters.budget}
+        </button>
+        <h2>Places</h2>
+        {ps.map(p=>(
+          <button className='result-row' key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}>
+            <MapPin size={18}/>
+            <div>
+              <strong>{p.name}</strong>
+              <span>{p.category} · {p.zone}</span>
+            </div>
+            <Pill level={norm(p.crowd)}/>
+            <ChevronRight size={16}/>
+          </button>
+        ))}
+        <h2>Experiences</h2>
+        {es.map(e=>(
+          <button className='result-row' key={e.id} onClick={()=>{setSelectedExp(e);go('experience')}}>
+            <Store size={18}/>
+            <div>
+              <strong>{e.title}</strong>
+              <span>{e.category} · NPR {e.price}</span>
+            </div>
+            <ChevronRight size={16}/>
+          </button>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+function FiltersView(){
+  return (
+    <Frame>
+      <Header title='Filters' back='search' right={<button style={{border:0, background:'transparent'}} onClick={()=>go('search')}><X size={18}/></button>}/>
+      <div className='phone-body'>
+        <h3>Crowd Level</h3>
+        <div className='chips'>
+          {['Low','Moderate','High','All'].map(x=>(
+            <button className={filters.crowd===x?'active':''} key={x} onClick={()=>setFilters({...filters,crowd:x})}>{x}</button>
+          ))}
+        </div>
+        <h3>Interests</h3>
+        <div className='chips'>
+          {['Heritage','Food','Crafts','Spiritual','Culture','Art & History','Nature'].map(x=>(
+            <button className={filters.interest===x?'active':''} key={x} onClick={()=>setFilters({...filters,interest:x})}>{x}</button>
+          ))}
+        </div>
+        <label className='range'>
+          Budget Range: NPR 0 – NPR {filters.budget}+
+          <input type='range' min='500' max='5000' step='500' value={filters.budget} onChange={e=>setFilters({...filters,budget:Number(e.target.value)})}/>
+        </label>
+        <div className='two-actions' style={{marginTop: '24px'}}>
+          <Secondary onClick={()=>setFilters({crowd:'All',interest:'All',budget:5000})}>Reset</Secondary>
+          <Primary onClick={()=>go('search')}>Apply Filters</Primary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function MapView(){
+  return (
+    <Frame>
+      <div className='map-page'>
+        <div className='map-top'>
+          <button className='search-bar' onClick={()=>go('search')}>
+            <Search size={16}/>
+            <span>Search places, experiences...</span>
+            <SlidersHorizontal size={16} style={{marginLeft: 'auto'}}/>
+          </button>
+          <div className='cat-pills'>
+            {['All','Heritage','Food','Crafts','Spiritual'].map(c=>(
+              <button key={c} className={category===c?'active':''} onClick={()=>setCategory(c)}>{c}</button>
+            ))}
+          </div>
+        </div>
+        <DynamicMap places={places} crowds={crowds} routes={publicMap} selected={selectedPlace} onSelect={id=>setSelectedPlace(id)}/>
+        <div className='map-sheet'>
+          <div className='sheet-head'>
+            <div>
+              <h2>{currentPlace?.name||'Patan Durbar Square'}</h2>
+              <Pill level={currentLevel}/>
+            </div>
+            <Bookmark size={20} color='#64748B'/>
+          </div>
+          <p>Estimated wait: {currentCrowd?.wait || '40 – 50 min'}</p>
+          <Primary onClick={()=>go('alert')}>See Alternatives</Primary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function AlertView(){
+  return (
+    <Frame>
+      <Header title='Crowd Alert!' back='map'/>
+      <div className='phone-body alert-sheet'>
+        <div className='alert-icon-wrap'>
+          <Users size={28}/>
+        </div>
+        <h1>Crowd Alert!</h1>
+        <p style={{fontSize: '13px', color: '#64748B', lineHeight: '1.5', margin: '8px 0 20px'}}>
+          <b>{currentPlace?.name || 'Patan Durbar Square'}</b> is currently very crowded. Would you like to explore these better alternatives?
+        </p>
+        {(places.filter(p=>p.id!==currentPlace?.id).slice(0,3).length ? places.filter(p=>p.id!==currentPlace?.id).slice(0,3) : [
+          {id:'p1',name:'Woodcarving Workshop',category:'Craft',crowd:'Low'},
+          {id:'p2',name:'Golden Temple (Patan)',category:'Spiritual',crowd:'Moderate'},
+          {id:'p3',name:'Mangal Bazaar',category:'Craft',crowd:'Low'}
+        ]).map((p, idx)=>(
+          <button className='alt-row' key={p.id} onClick={()=>{setSelectedPlace(p.id);go('map')}}>
+            <img src={imageFor(p.category)} alt=''/>
+            <div>
+              <strong>{p.name}</strong>
+              <Pill level={norm(crowds.find(c=>c.id===p.id)?.level||p.crowd)}/>
+              <span>{idx === 0 ? '5 min walk • 450 m' : idx === 1 ? '7 min walk • 600 m' : '8 min walk • 650 m'}</span>
+            </div>
+            <ChevronRight size={16} color='#94A3B8'/>
+          </button>
+        ))}
+        <div style={{marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+          <Primary onClick={()=>go('quiet')}>Update My Journey</Primary>
+          <Secondary onClick={()=>go('map')}>Maybe Later</Secondary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function QuietView(){
+  const origin=geo||{lat:27.6738,lng:85.3232};
+  const rows=places.map(p=>{const km=hav(origin,p),c=crowds.find(x=>x.id===p.id);return{...p,km,level:norm(c?.level||p.crowd),wait:c?.wait||'Estimate unavailable',source:c?.source||'Demo estimate'}}).filter(p=>['low','moderate'].includes(p.level)).sort((a,b)=>(a.level==='low'?0:1)-(b.level==='low'?0:1)||a.km-b.km);
+  const locate=()=>navigator.geolocation?.getCurrentPosition(p=>{setGeo({lat:p.coords.latitude,lng:p.coords.longitude});setGeoLabel('Using your current location')},()=>setGeoLabel('Location not shared · Patan pilot center'));
+  return (
+    <Frame>
+      <Header title='Less Crowded Nearby'/>
+      <div className='phone-body'>
+        <div className='quiet-intro'>
+          <Leaf size={32}/>
+          <div>
+            <h1>Find calmer places.</h1>
+            <p>Ranked by crowd pressure, then distance.</p>
+            <small>{geoLabel}</small>
+          </div>
+        </div>
+        <button className='location-btn' onClick={locate}><Navigation size={14}/>Use my location</button>
+        {rows.map(p=>(
+          <article className='quiet-row' key={p.id}>
+            <img src={imageFor(p.category)} alt=''/>
+            <div>
+              <strong>{p.name}</strong>
+              <Pill level={p.level}/>
+              <small>{p.km<1?`${Math.round(p.km*1000)} m`:`${p.km.toFixed(1)} km`} · {p.wait}</small>
+            </div>
+            <div>
+              <button onClick={()=>{setSelectedPlace(p.id);go('map')}}>Map</button>
+              <button onClick={()=>setQuietAdded(x=>x.includes(p.id)?x:[...x,p.id])}>{quietAdded.includes(p.id)?'Added':'Add to Journey'}</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+function PlaceView(){
+  return (
+    <Frame>
+      <div className='detail-hero'>
+        <img src={imageFor(currentPlace?.category||'Heritage')} alt={currentPlace?.name}/>
+        <div className='floating-nav'>
+          <button className='icon-btn' onClick={()=>go('map')}><ArrowLeft size={18}/></button>
+          <div style={{display: 'flex', gap: '8px'}}>
+            <button className='icon-btn'><Navigation size={16}/></button>
+            <button className='icon-btn'><Heart size={16}/></button>
+          </div>
+        </div>
+      </div>
+
+      <div className='place-detail-sheet'>
+        <h1>{currentPlace?.name || 'Patan Durbar Square'}</h1>
+        <Pill level={currentLevel}/>
+
+        <div className='key-specs'>
+          <div>⏱ <b>Estimated wait:</b> {currentCrowd?.wait || '40 – 50 min'}</div>
+          <div>💡 <b>Best time to visit:</b> After 3:00 PM</div>
+        </div>
+
+        <p style={{fontSize: '13px', color: '#64748B', lineHeight: '1.5'}}>
+          A UNESCO World Heritage Site and the cultural heart of Patan.
+        </p>
+
+        <div className='quick-tabs'>
+          {[
+            ['History', <Landmark size={18}/>],
+            ['Photos', <Grid3X3 size={18}/>],
+            ['Reviews 4.8', <Star size={18}/>],
+            ['Tips', <HelpCircle size={18}/>]
+          ].map(([l, i])=>(
+            <button key={String(l)} className={placeTab===l?'active':''} onClick={()=>setPlaceTab(String(l))}>
+              {i}<span>{l}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className='section-title'>
+          <h2>Nearby Alternatives</h2>
+          <button onClick={()=>go('quiet')}>See all</button>
+        </div>
+
+        {[
+          {id:'a1',name:'Woodcarving Workshop',category:'Craft',crowd:'Low',dist:'5 min walk • 450 m'},
+          {id:'a2',name:'Golden Temple',category:'Spiritual',crowd:'Moderate',dist:'7 min walk • 600 m'},
+          {id:'a3',name:'Mangal Bazaar',category:'Craft',crowd:'Low',dist:'8 min walk • 650 m'}
+        ].map(a=>(
+          <button className='alt-row' key={a.id} onClick={()=>{setSelectedPlace(a.id);go('map')}}>
+            <img src={imageFor(a.category)} alt=''/>
+            <div>
+              <strong>{a.name}</strong>
+              <Pill level={norm(a.crowd)}/>
+              <span>{a.dist}</span>
+            </div>
+            <ChevronRight size={16} color='#94A3B8'/>
+          </button>
+        ))}
+
+        <div className='dual-actions-bar'>
+          <Secondary onClick={()=>go('quiet')}>Add to Journey</Secondary>
+          <Primary onClick={()=>go('map')}>Navigate</Primary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function ExperiencesView(){
+  return (
+    <Frame>
+      <Header title='Living Heritage'/>
+      <div className='phone-body'>
+        <div className='chips'>
+          {['All','Craft','Food','Culture','Art'].map(x=>(
+            <button className={category===x?'active':''} onClick={()=>setCategory(x)} key={x}>{x}</button>
+          ))}
+        </div>
+        <div className='experience-list'>
+          {experiences.filter(e=>category==='All'||e.category===category).map(e=>(
+            <button key={e.id} onClick={()=>{setSelectedExp(e);setTime('');go('experience')}}>
+              <img src={e.image} alt={e.title}/>
+              <div>
+                <strong>{e.title}</strong>
+                <span>{e.category} · NPR {e.price}</span>
+                <small>★ {e.rating}</small>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function ExperienceView(){
+  if(!selectedExp) return null;
+  const available=slots.filter(s=>s.experienceId===selectedExp.id&&s.day==='Today'&&s.available&&s.booked<s.capacity);
+  return (
+    <Frame>
+      <div className='detail-hero'>
+        <img src={selectedExp.image} alt={selectedExp.title}/>
+        <div className='floating-nav'>
+          <button className='icon-btn' onClick={()=>go('experiences')}><ArrowLeft size={18}/></button>
+          <div style={{display: 'flex', gap: '8px'}}>
+            <button className='icon-btn'><Navigation size={16}/></button>
+            <button className='icon-btn'><Heart size={16}/></button>
+          </div>
+        </div>
+      </div>
+
+      <div className='place-detail-sheet'>
+        <h1>{selectedExp.title}</h1>
+        <p style={{fontSize: '13px', color: '#64748B', margin: '4px 0 10px'}}>{selectedExp.subtitle}</p>
+
+        <div className='facts'>
+          <Pill level='low'/>
+          <span style={{fontSize: '12px', fontWeight: '700'}}><Star size={13} fill='#D97706' color='#D97706'/> {selectedExp.rating} • Patan</span>
+          <span style={{fontSize: '12px', color: '#64748B'}}><Clock size={13}/> {selectedExp.duration} • Group Size: 2 – 8</span>
+        </div>
+
+        <p style={{fontSize: '13px', color: '#475569', lineHeight: '1.55', margin: '14px 0'}}>
+          Experience traditional Newari woodcarving and create your own souvenir.
+        </p>
+
+        <h2 style={{fontSize: '14px', fontWeight: '800', margin: '16px 0 10px'}}>What's Included</h2>
+        <div className='facts' style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center'}}>
+          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Store size={16}/><br/>Materials</div>
+          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><User size={16}/><br/>Guide</div>
+          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Utensils size={16}/><br/>Refreshments</div>
+          <div style={{border: '1px solid #E2E8F0', borderRadius: '12px', padding: '10px 4px', fontSize: '11px'}}><Gift size={16}/><br/>Your Creation</div>
+        </div>
+
+        <h2 style={{fontSize: '14px', fontWeight: '800', margin: '20px 0 10px'}}>Available Time Slots</h2>
+        <div className='slots'>
+          {['10:00 AM', '11:30 AM', '2:00 PM', '4:00 PM'].map(t=>(
+            <button key={t} className={time===t?'active':''} onClick={()=>setTime(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className='sticky-buy'>
+          <div>
+            <strong style={{fontSize: '16px', display: 'block'}}>NPR {selectedExp.price}</strong>
+            <span style={{fontSize: '11px', color: '#64748B'}}>/ person</span>
+          </div>
+          <Primary disabled={!time} onClick={()=>go('booking')}>Book Now</Primary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function BookingView(){
+  if(!selectedExp) return null;
+  return (
+    <Frame>
+      <Header title='Review booking' back='experience'/>
+      <div className='phone-body'>
+        <div className='booking-product'>
+          <img src={selectedExp.image} alt=''/>
+          <div>
+            <strong>{selectedExp.title}</strong>
+            <span>{time || '10:00 AM'}</span>
+          </div>
+        </div>
+        <div className='stepper'>
+          <span>Guests</span>
+          <div>
+            <button onClick={()=>setGuests(Math.max(1,guests-1))}><Minus size={14}/></button>
+            <b>{guests}</b>
+            <button onClick={()=>setGuests(Math.min(12,guests+1))}><Plus size={14}/></button>
+          </div>
+        </div>
+        <div className='price-row'>
+          <span>Total</span>
+          <b>NPR {(selectedExp.price*guests).toLocaleString()}</b>
+        </div>
+        <div className='soft-banner'>
+          <ShieldCheck size={18}/>
+          <p>Prototype checkout: no real payment is processed. Price is recalculated server-side.</p>
+        </div>
+        {error&&<div className='form-error'>{error}</div>}
+        <Primary onClick={confirmBooking}>Confirm booking</Primary>
+      </div>
+    </Frame>
+  );
+}
+
+function ConfirmedView(){
+  return (
+    <Frame>
+      <div className='success-page'>
+        <Check className='success-icon'/>
+        <h1>Booking confirmed</h1>
+        <p>Your booking is now shared with the assigned operator and manager workspace.</p>
+        <Primary onClick={()=>go('bookings')}>My Bookings</Primary>
+      </div>
+    </Frame>
+  );
+}
+
+function BookingsView(){
+  return (
+    <Frame>
+      <Header title='My Bookings'/>
+      <div className='phone-body'>
+        <div className='chips' style={{marginBottom: '16px'}}>
+          <button className='active'>Upcoming</button>
+          <button>Completed</button>
+        </div>
+
+        {(bookings.length ? bookings : [
+          {id:'b1',experienceTitle:'Woodcarving Workshop',date:'12 May 2024',time:'10:00 AM',status:'Confirmed'},
+          {id:'b2',experienceTitle:'Newari Lunch Experience',date:'12 May 2024',time:'1:15 PM',status:'Confirmed'},
+          {id:'b3',experienceTitle:'Heritage Walk (Patan)',date:'12 May 2024',time:'3:30 PM',status:'Pending'}
+        ]).map(b=>(
+          <article className='booking-item-card' key={b.id}>
+            <img src={imageFor('Craft')} alt=''/>
+            <div>
+              <strong>{b.experienceTitle}</strong>
+              <span>{b.date || '12 May 2024'} • {b.time}</span>
+              <span style={{fontSize: '10px', color: '#94A3B8'}}>Booking ID: YL12345</span>
+            </div>
+            <span className={`status-badge ${b.status.toLowerCase()}`}>{b.status}</span>
+          </article>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+function PointsView(){
+  return (
+    <Frame>
+      <Header title='Heritage Points & Rewards' back='profile'/>
+      <div className='phone-body'>
+        <div className='points-card-banner'>
+          <span style={{fontSize: '12px', opacity: '0.9'}}>Your Heritage Points</span>
+          <strong>{points}</strong>
+          <span style={{fontSize: '11px', opacity: '0.8'}}>Earn points, get rewards, support heritage.</span>
+        </div>
+
+        <h2 style={{fontSize: '14px', fontWeight: '800'}}>How to Earn</h2>
+        {[
+          ['Visit off-peak hours', '+50 pts'],
+          ['Book local experiences', '+100 pts'],
+          ['Support local artisans', '+75 pts'],
+          ['Choose alternative routes', '+25 pts']
+        ].map(([title, pts])=>(
+          <div className='profile-menu-item' key={title} style={{gridTemplateColumns: '1fr auto', height: '44px'}}>
+            <span>{title}</span>
+            <span style={{color: '#227C44', fontWeight: '700'}}>{pts}</span>
+          </div>
+        ))}
+
+        <h2 style={{fontSize: '14px', fontWeight: '800', marginTop: '20px'}}>Redeem Rewards</h2>
+        <div className='booking-item-card' style={{gridTemplateColumns: '1fr auto'}}>
+          <div>
+            <strong>Local Cafe Discount</strong>
+            <span>100 points</span>
+          </div>
+          <button className='btn secondary' style={{height: '34px', fontSize: '11px'}} disabled={points<100} onClick={()=>redeem(100,'Local cafe discount')}>
+            Redeem
+          </button>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function ImpactView(){
+  const active=bookings.filter(b=>!['Cancelled','Refunded'].includes(b.status));
+  return (
+    <Frame>
+      <Header title='My Impact' back='profile'/>
+      <div className='phone-body'>
+        <div className='points-card-banner' style={{background: 'linear-gradient(135deg, #15803D 0%, #166534 100%)'}}>
+          <strong>Your Impact So Far</strong>
+          <span style={{fontSize: '12px'}}>Keep exploring responsibly!</span>
+        </div>
+
+        <div className='impact-stats-grid'>
+          <div className='impact-stat-card'>
+            <b>NPR 3,850</b>
+            <span>Spent Locally</span>
+          </div>
+          <div className='impact-stat-card'>
+            <b>4</b>
+            <span>Local Businesses Supported</span>
+          </div>
+          <div className='impact-stat-card'>
+            <b>2</b>
+            <span>Crowded Places Avoided</span>
+          </div>
+          <div className='impact-stat-card'>
+            <b>NPR 350</b>
+            <span>Heritage Contribution</span>
+          </div>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function ProfileView(){
+  return (
+    <Frame>
+      <div className='phone-body'>
+        <div className='profile-head-card'>
+          <div className='profile-avatar'>A</div>
+          <div>
+            <h1 style={{fontSize: '18px', margin: 0}}>Aarav Sharma</h1>
+            <span style={{fontSize: '12px', color: '#64748B'}}>aarav.sharma@gmail.com</span>
+            <div style={{marginTop: '4px', fontSize: '11px', fontWeight: '700', color: 'var(--teal-primary)'}}>
+              Explorer Level 3 • {points} Heritage Points
+            </div>
+          </div>
+        </div>
+
+        <div className='profile-menu-list'>
+          {[
+            ['My Bookings', <CalendarDays size={18}/>, ()=>go('bookings')],
+            ['Saved Places', <Bookmark size={18}/>, ()=>go('map')],
+            ['Heritage Points & Rewards', <Gift size={18}/>, ()=>go('points')],
+            ['My Impact', <Leaf size={18}/>, ()=>go('impact')],
+            ['Settings', <Settings size={18}/>, onSettings],
+            ['Help & Support', <HelpCircle size={18}/>, ()=>go('privacy')],
+            ['Log out', <LogOut size={18}/>, onLogout]
+          ].map(([title, icon, action], idx)=>(
+            <button key={String(title)} className={`profile-menu-item ${idx === 6 ? 'logout' : ''}`} onClick={action as any}>
+              {icon as React.ReactNode}
+              <span>{title as string}</span>
+              <ChevronRight size={16} color='#CBD5E1'/>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function PrivacyView(){
+  return (
+    <Frame>
+      <Header title='Privacy' back='profile'/>
+      <div className='phone-body'>
+        <h1>Privacy by default.</h1>
+        <p className='lead'>The same persisted account preference is used here and in Settings.</p>
+        <div className='setting-toggle'>
+          <div>
+            <strong>Anonymous location sharing</strong>
+            <span>Opt in to location-aware discovery.</span>
+          </div>
+          <button className={settings?.location_sharing?'on':''} onClick={()=>savePrivacy(!settings?.location_sharing)}><i/></button>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function NotificationsView(){
+  return (
+    <Frame>
+      <Header title='Notifications' back='profile'/>
+      <div className='phone-body'>
+        {[
+          ['Crowd changed','Patan crowd pressure changed.'],
+          ['Booking update','Your operator can update attendance status.'],
+          ['Points earned','Bookings add Heritage Points.']
+        ].map(([a,b])=>(
+          <div className='notification-row' key={a}>
+            <i/>
+            <div>
+              <strong>{a}</strong>
+              <p>{b}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+function PlanView(){
+  return (
+    <Frame>
+      <Header title='AI Trip Planner'/>
+      <div className='phone-body'>
+        <h1>Plan your Nepal journey</h1>
+        <p className='lead'>Custom AI itinerary tailored to your travel group, budget, pace, daily schedule, and cultural interests.</p>
+
+        <div className='planner-form'>
+          <div className='form-section-title'>1. Trip Overview</div>
+          <label>Destinations<textarea value={planner.destinations} onChange={e=>setPlanner({...planner,destinations:e.target.value})} placeholder='e.g. Patan, Bhaktapur, Kathmandu'/></label>
+          <div className='pair'>
+            <label>Start Date<input type='date' value={planner.startDate} onChange={e=>setPlanner({...planner,startDate:e.target.value})}/></label>
+            <label>End Date<input type='date' value={planner.endDate} onChange={e=>setPlanner({...planner,endDate:e.target.value})}/></label>
+          </div>
+          <label>Budget (NPR)<input type='number' value={planner.budget} onChange={e=>setPlanner({...planner,budget:Number(e.target.value)})}/></label>
+
+          <div className='form-section-title'>2. Travel Style & Group</div>
+          <div className='pair'>
+            <label>Travel Group
+              <select value={planner.travelGroup} onChange={e=>setPlanner({...planner,travelGroup:e.target.value})}>
+                <option>Solo traveler</option>
+                <option>Couple</option>
+                <option>Family with kids</option>
+                <option>Group of friends</option>
+                <option>Cultural research tour</option>
+              </select>
+            </label>
+            <label>Travel Pace
+              <select value={planner.pace} onChange={e=>setPlanner({...planner,pace:e.target.value})}>
+                <option>Relaxed</option>
+                <option>Balanced</option>
+                <option>Fast-paced</option>
+              </select>
+            </label>
+          </div>
+          <div className='pair'>
+            <label>Transport Mode
+              <select value={planner.transport} onChange={e=>setPlanner({...planner,transport:e.target.value})}>
+                <option>Walk + local taxi</option>
+                <option>Walking only (Eco)</option>
+                <option>Private car & driver</option>
+                <option>Local microbus / Rickshaw</option>
+              </select>
+            </label>
+            <label>Crowd Strategy
+              <select value={planner.crowdPreference} onChange={e=>setPlanner({...planner,crowdPreference:e.target.value})}>
+                <option>Avoid peak crowds</option>
+                <option>Balanced</option>
+                <option>Famous places first</option>
+              </select>
+            </label>
+          </div>
+
+          <div className='form-section-title'>3. Timing & Dining</div>
+          <div className='pair'>
+            <label>Daily Start
+              <select value={planner.dailyStart} onChange={e=>setPlanner({...planner,dailyStart:e.target.value})}>
+                <option>08:00 AM</option>
+                <option>09:00 AM</option>
+                <option>10:00 AM</option>
+              </select>
+            </label>
+            <label>Daily Wrap-up
+              <select value={planner.dailyEnd} onChange={e=>setPlanner({...planner,dailyEnd:e.target.value})}>
+                <option>17:00 (5 PM)</option>
+                <option>18:00 (6 PM)</option>
+                <option>20:00 (8 PM)</option>
+              </select>
+            </label>
+          </div>
+          <label>Dietary Preference
+            <select value={planner.dietary} onChange={e=>setPlanner({...planner,dietary:e.target.value})}>
+              <option>Local Newari & Authentic</option>
+              <option>Vegetarian / Vegan friendly</option>
+              <option>Cafés & Traditional Tea Houses</option>
+              <option>Flexible / Any</option>
+            </select>
+          </label>
+
+          <div className='form-section-title'>4. Interests & Specific Requests</div>
+          <label>Cultural Interests<textarea value={planner.interests} onChange={e=>setPlanner({...planner,interests:e.target.value})} placeholder='e.g. Heritage, woodcarving, Newari food, monasteries'/></label>
+          <label>Must-Visit Places<textarea value={planner.mustVisit} onChange={e=>setPlanner({...planner,mustVisit:e.target.value})} placeholder='e.g. Patan Durbar Square, Golden Temple'/></label>
+          <label>Special Notes & Accessibility<textarea value={planner.notes} onChange={e=>setPlanner({...planner,notes:e.target.value})} placeholder='e.g. Step-free preferred, photography focus, early morning prayer access'/></label>
+        </div>
+
+        {aiError&&<div className='form-error'>{aiError}</div>}
+        <Primary disabled={aiLoading} onClick={generate}>
+          {aiLoading?'Building personalized timeline…':'Generate grounded AI timeline'}
+        </Primary>
+      </div>
+    </Frame>
+  );
+}
+
+function ItineraryView(){
+  return (
+    <Frame>
+      <Header title='My Journey' back='plan'/>
+      <div className='phone-body'>
+        <div className='journey-card'>
+          <h2>Heritage & Culture Walk</h2>
+          <p>Today, 12 May 2024 • 6 Stops • ~5 hr 30 min</p>
+          <strong>Total Est. Cost: NPR 2,700</strong>
+        </div>
+
+        <div className='timeline-list'>
+          {[
+            {time:'10:00 AM',title:'Patan Durbar Square',crowd:'high',walk:'12 min walk (850 m)'},
+            {time:'11:15 AM',title:'Golden Temple (Patan)',crowd:'moderate',walk:'30 min visit'},
+            {time:'12:15 PM',title:'Newari Lunch Experience',crowd:'low',walk:'60 min • Local Restaurant'},
+            {time:'01:30 PM',title:'Woodcarving Workshop',crowd:'low',walk:'45 min experience'},
+            {time:'02:30 PM',title:'Mangal Bazaar',crowd:'low',walk:'30 min explore'},
+            {time:'03:30 PM',title:'Heritage Walk',crowd:'low',walk:'60 min • Guided'}
+          ].map((item, i)=>(
+            <div className='timeline-item' key={i}>
+              <div className='node-dot'>{i+1}</div>
+              <time>{item.time}</time>
+              <div className='item-card'>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <strong>{item.title}</strong>
+                  <Pill level={norm(item.crowd)}/>
+                </div>
+                <span style={{fontSize: '11px', color: '#64748B', display: 'block', marginTop: '4px'}}>{item.walk}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className='dual-actions-bar'>
+          <Secondary onClick={()=>go('map')}>View Map</Secondary>
+          <Primary onClick={()=>alert('Journey started! Navigating to first stop.')}>Start Journey</Primary>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+function ProductMap(){
+  const [query,setQuery]=useState('');
+  const rows=PAGE_LIBRARY.filter(p=>p.role==='Traveler'&&`${p.title} ${p.module}`.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <main className='product-map'>
+      <header>
+        <button onClick={()=>go('profile')}><ArrowLeft size={16}/>Back</button>
+        <Logo/>
+        <h1>149 Traveler Prototype Screens</h1>
+        <p>Role-protected Admin and Operator workspaces are not exposed here.</p>
+      </header>
+      <div className='library'>
+        <label><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder='Search traveler screens'/></label>
+        <div className='page-grid'>
+          {rows.map(p=>(
+            <button key={p.id} onClick={()=>openCatalog(p)}>
+              <span>{p.module}</span>
+              <strong>{p.title}</strong>
+              <small>{p.route}</small>
+              <ArrowRight size={14}/>
+            </button>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
+}
+
  if(portal==='productMap')return <ProductMap/>;if(portal==='catalog'&&catalogPage)return <ProductScreenRenderer page={catalogPage} pages={PAGE_LIBRARY.filter(p=>p.role==='Traveler')} onBack={()=>{setPortal('productMap');location.hash='#/screens'}} onOpen={openCatalog} crowdLevel={currentLevel} crowdLabel={crowdInfo[currentLevel].label} crowdWait={currentCrowd?.wait||crowdInfo[currentLevel].wait} onOpenCore={t=>go(t as Screen)}/>;if(screen==='home')return <HomeView/>;if(screen==='search')return <SearchView/>;if(screen==='filters')return <FiltersView/>;if(screen==='map')return <MapView/>;if(screen==='alert')return <AlertView/>;if(screen==='quiet')return <QuietView/>;if(screen==='place')return <PlaceView/>;if(screen==='experiences')return <ExperiencesView/>;if(screen==='experience')return <ExperienceView/>;if(screen==='booking')return <BookingView/>;if(screen==='confirmed')return <ConfirmedView/>;if(screen==='bookings')return <BookingsView/>;if(screen==='points')return <PointsView/>;if(screen==='impact')return <ImpactView/>;if(screen==='privacy')return <PrivacyView/>;if(screen==='notifications')return <NotificationsView/>;if(screen==='plan')return <PlanView/>;if(screen==='itinerary')return <ItineraryView/>;return <ProfileView/>}
