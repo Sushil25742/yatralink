@@ -134,6 +134,24 @@ export default function ManagementConsole({ sessionId, user, onSettings, onLogou
 
   const act = async (action: string, payload: Record<string, unknown> = {}) => {
     setError('');
+    
+    // UI-only mock intercepts
+    if (action === 'add_operator' && state) {
+      const op = {
+        id: 'op_' + Date.now(),
+        business: payload.business as string,
+        email: payload.email as string,
+        experiences: 0,
+        status: 'Pending',
+        joined: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      };
+      setState({
+        ...state,
+        operators: [op, ...state.operators]
+      });
+      return true;
+    }
+
     try {
       const { data } = await api.post('/api/management/action', { session_id: sessionId, action, payload });
       // Restore mocks if overwritten
@@ -798,6 +816,16 @@ function BookingsPage({ state, act, admin = false }: { state: State; act: (a: st
 // ---------------------------------------------
 function OperatorsPage({ state, act, nav }: { state: State; act: (a: string, p?: Record<string, unknown>) => Promise<boolean>; nav: (v: AdminView) => void }) {
   const [q, setQ] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [newOp, setNewOp] = useState({ business: '', email: '' });
+
+  const handleAdd = async () => {
+    if (!newOp.business || !newOp.email) return;
+    await act('add_operator', newOp);
+    setShowAdd(false);
+    setNewOp({ business: '', email: '' });
+  };
+
   return (
     <>
       <div className='mc-toolbar'>
@@ -812,9 +840,34 @@ function OperatorsPage({ state, act, nav }: { state: State; act: (a: string, p?:
         </div>
         <div className='mc-toolbar-right'>
           <button className='mc-secondary' onClick={() => nav('operator-applications')}>Applications (3)</button>
-          <button className='mc-primary'><Plus size={18}/> Add Operator</button>
+          <button className='mc-primary' onClick={() => setShowAdd(true)}><Plus size={18}/> Add Operator</button>
         </div>
       </div>
+
+      {showAdd && (
+        <div className="mc-modal-overlay">
+          <div className="mc-modal">
+            <div className="mc-modal-header">
+              <h3>Add New Operator</h3>
+              <button className="mc-btn-icon" onClick={() => setShowAdd(false)}><X size={18} /></button>
+            </div>
+            <div className="mc-modal-body">
+              <div className="mc-form-group">
+                <label>Business Name</label>
+                <input value={newOp.business} onChange={e => setNewOp({...newOp, business: e.target.value})} placeholder="e.g. Himalayan Treks" />
+              </div>
+              <div className="mc-form-group">
+                <label>Email Address</label>
+                <input type="email" value={newOp.email} onChange={e => setNewOp({...newOp, email: e.target.value})} placeholder="e.g. contact@himalayantreks.com" />
+              </div>
+            </div>
+            <div className="mc-modal-footer">
+              <button className="mc-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="mc-primary" onClick={handleAdd}>Save Operator</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className='mc-table-card'>
         <table>
