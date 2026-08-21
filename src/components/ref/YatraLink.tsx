@@ -1274,7 +1274,7 @@ function ItineraryView(){
       <div className='phone-body' style={{ paddingTop: '16px' }}>
         <div className='journey-card' style={{ marginBottom: '24px', background: 'linear-gradient(135deg, var(--teal-primary), var(--teal-dark))', color: '#fff', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(12, 90, 86, 0.15)' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 8px 0', color: '#fff' }}>{plan.title}</h2>
-          <p style={{ margin: 0, opacity: 0.9, fontSize: '13px', lineHeight: 1.4 }}>{plan.summary}</p>
+          <p style={{ margin: 0, color: '#fff', opacity: 0.9, fontSize: '13px', lineHeight: 1.4 }}>{plan.summary}</p>
           
           <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '16px' }}>
             <div>
