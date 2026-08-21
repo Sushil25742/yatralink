@@ -289,3 +289,67 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 8px 20px rgba(12, 113, 111, 0.08) !important;
 }
 
+/* AI Planner Multi-Section Form Styling */
+.form-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0c716f;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  background: rgba(12, 113, 111, 0.06);
+  border-left: 3px solid #0c716f;
+  border-radius: 6px;
+  margin: 16px 0 8px 0;
+}
+
+.planner-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.planner-form label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planner-form input,
+.planner-form select,
+.planner-form textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.planner-form input:focus,
+.planner-form select:focus,
+.planner-form textarea:focus {
+  outline: none;
+  border-color: #0c716f;
+  box-shadow: 0 0 0 3px rgba(12, 113, 111, 0.15);
+}
+
+.planner-form textarea {
+  min-height: 52px;
+  resize: vertical;
+}
+
+.planner-form .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+
