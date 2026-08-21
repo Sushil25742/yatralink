@@ -44,15 +44,13 @@ function DynamicMap({places,crowds,routes,selected,onSelect}:{places:Place[];cro
             <div class="map-pin-card ${isSel ? 'selected' : ''}">
               <img src="${imageFor(p.category)}" alt="${p.name}" class="pin-img"/>
               <div class="pin-text">
-                <strong class="pin-title">${p.name}</strong>
-                <span class="pin-badge" style="background: ${badgeColor}15; color: ${badgeColor}; border: 1px solid ${badgeColor}30;">
-                  <i style="background: ${badgeColor};"></i> ${badgeText}
-                </span>
+                <span class="pin-title">${p.name}</span>
+                <i class="pin-dot" style="background: ${badgeColor};"></i>
               </div>
             </div>
           `,
-          iconSize: [118, 32],
-          iconAnchor: [59, 16]
+          iconSize: [110, 28],
+          iconAnchor: [55, 14]
         });
 
         return (
@@ -334,12 +332,16 @@ function MapView(){
         <DynamicMap places={places} crowds={crowds} routes={publicMap} selected={selectedPlace} onSelect={id=>setSelectedPlace(id)}/>
 
         <div className='map-sheet'>
+          <div className='sheet-drag-handle'/>
           <div className='map-sheet-hero'>
             <img src={imageFor(currentPlace?.category || 'Heritage')} alt={currentPlace?.name}/>
             <div>
               <h2>{currentPlace?.name || 'Patan Durbar Square'}</h2>
-              <Pill level={currentLevel}/>
-              <p>⏱ <b>Est. Wait:</b> {currentCrowd?.wait || '40 – 50 min'}</p>
+              <div style={{display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0'}}>
+                <Pill level={currentLevel}/>
+                <span style={{fontSize: '11px', color: '#64748B'}}>📍 0.3 km away</span>
+              </div>
+              <p style={{margin: '4px 0 0', fontSize: '11px', color: '#475569'}}>⏱ <b>Est. Wait:</b> {currentCrowd?.wait || '40 – 50 min'}</p>
             </div>
           </div>
           <div className='dual-actions-bar' style={{margin: '12px 0 0', padding: 0, border: 0}}>
