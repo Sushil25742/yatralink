@@ -1223,34 +1223,103 @@ function PlanView(){
 }
 
 function ItineraryView(){
+  const [selectedDay, setSelectedDay] = useState(1);
+  const plan = aiPlan;
+  
+  if (!plan) {
+    return (
+      <Frame>
+        <Header title='My Journey' back='plan'/>
+        <div className='phone-body' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+          <Compass size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+          <h3>No plan generated</h3>
+          <p style={{ marginTop: '8px', fontSize: '14px' }}>Please go back and generate a plan.</p>
+          <Primary onClick={()=>go('plan')}>Go to Planner</Primary>
+        </div>
+      </Frame>
+    );
+  }
+
+  const currentDay = plan.days.find(d => d.day === selectedDay) || plan.days[0];
+  const totalCost = plan.total_estimated_cost.toLocaleString();
+
   return (
     <Frame>
       <Header title='My Journey' back='plan'/>
-      <div className='phone-body'>
-        <div className='journey-card'>
-          <h2>Heritage & Culture Walk</h2>
-          <p>Today, 12 May 2024 • 6 Stops • ~5 hr 30 min</p>
-          <strong>Total Est. Cost: NPR 2,700</strong>
+      
+      {plan.days.length > 1 && (
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '12px 16px', borderBottom: '1px solid #E2E8F0', background: '#fff', scrollbarWidth: 'none' }}>
+          {plan.days.map(d => (
+            <button
+              key={d.day}
+              onClick={() => setSelectedDay(d.day)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontWeight: 700,
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                background: d.day === selectedDay ? 'var(--teal-primary)' : '#F1F5F9',
+                color: d.day === selectedDay ? '#FFF' : 'var(--ink)'
+              }}
+            >
+              Day {d.day}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className='phone-body' style={{ paddingTop: '16px' }}>
+        <div className='journey-card' style={{ marginBottom: '24px', background: 'linear-gradient(135deg, var(--teal-primary), var(--teal-dark))', color: '#fff', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(12, 90, 86, 0.15)' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 8px 0', color: '#fff' }}>{plan.title}</h2>
+          <p style={{ margin: 0, opacity: 0.9, fontSize: '13px', lineHeight: 1.4 }}>{plan.summary}</p>
+          
+          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '16px' }}>
+            <div>
+              <small style={{ opacity: 0.8, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Day {currentDay.day} Theme</small>
+              <div style={{ fontWeight: 600, fontSize: '14px', marginTop: '2px' }}>{currentDay.theme}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <small style={{ opacity: 0.8, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Est. Cost</small>
+              <div style={{ fontWeight: 800, fontSize: '16px', marginTop: '2px' }}>{plan.currency} {totalCost}</div>
+            </div>
+          </div>
         </div>
 
         <div className='timeline-list'>
-          {[
-            {time:'10:00 AM',title:'Patan Durbar Square',crowd:'high',walk:'12 min walk (850 m)'},
-            {time:'11:15 AM',title:'Golden Temple (Patan)',crowd:'moderate',walk:'30 min visit'},
-            {time:'12:15 PM',title:'Newari Lunch Experience',crowd:'low',walk:'60 min • Local Restaurant'},
-            {time:'01:30 PM',title:'Woodcarving Workshop',crowd:'low',walk:'45 min experience'},
-            {time:'02:30 PM',title:'Mangal Bazaar',crowd:'low',walk:'30 min explore'},
-            {time:'03:30 PM',title:'Heritage Walk',crowd:'low',walk:'60 min • Guided'}
-          ].map((item, i)=>(
+          {currentDay.items.map((item, i)=>(
             <div className='timeline-item' key={i}>
-              <div className='node-dot'>{i+1}</div>
-              <time>{item.time}</time>
+              <div className='node-dot'>
+                <MapPin size={12} strokeWidth={3} />
+              </div>
+              <time style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {item.time} 
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 500 }}>- {item.end_time}</span>
+              </time>
               <div className='item-card'>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                  <strong>{item.title}</strong>
-                  <Pill level={norm(item.crowd)}/>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px'}}>
+                  <strong style={{ fontSize: '15px' }}>{item.title}</strong>
+                  <Pill level={norm(item.crowd_strategy)} />
                 </div>
-                <span style={{fontSize: '11px', color: '#64748B', display: 'block', marginTop: '4px'}}>{item.walk}</span>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--ink)', marginBottom: '8px', fontWeight: 500 }}>
+                  <Compass size={14} style={{ color: 'var(--teal-primary)' }}/> {item.category} • {item.location}
+                </div>
+                
+                <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+                  {item.reason}
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '10px 12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
+                    <Clock size={14}/> {item.duration_minutes} min
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--teal-primary)', fontWeight: 600 }}>
+                    <Navigation size={14}/> {item.transport_to_next}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
