@@ -8,7 +8,7 @@ import {
   MapPin, MessageSquare, MoreHorizontal, Plus, RefreshCw, Search, Settings,
   ShieldCheck, Star, Store, TicketCheck, Trash2, TrendingUp, UserRoundCheck,
   Users, X, Download, AlertCircle, ArrowUpRight, ArrowDownRight, Upload,
-  LineChart, PieChart as PieChartIcon, FileText, Send
+  LineChart, PieChart as PieChartIcon, FileText, Send, Filter, Pause, Copy
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -41,7 +41,7 @@ type State = {
 };
 
 type AdminView = 'overview' | 'places' | 'experiences' | 'bookings' | 'operators' | 'crowd' | 'users' | 'analytics' | 'reviews' | 'reports' | 'settings' | 'notifications' | 'operator-applications';
-type OperatorView = 'overview' | 'experiences' | 'bookings' | 'calendar' | 'earnings' | 'reviews';
+type OperatorView = 'overview' | 'experiences' | 'bookings' | 'calendar' | 'customers' | 'reviews' | 'payouts' | 'analytics' | 'settings';
 
 const money = (n: number) => `NPR ${Math.round(n).toLocaleString()}`;
 const crowdClass = (x: string) => x.toLowerCase().replace(/\s+/g, '-');
@@ -124,7 +124,7 @@ export default function ManagementConsole({ sessionId, user, onSettings, onLogou
         if (['overview', 'places', 'experiences', 'bookings', 'operators', 'crowd', 'users', 'analytics', 'reviews', 'reports', 'settings', 'notifications', 'operator-applications'].includes(v)) setAdminView(v);
       } else if (!isAdmin && h.startsWith('#/operator/')) {
         const v = h.split('/')[2] as OperatorView;
-        if (['overview', 'experiences', 'bookings', 'calendar', 'earnings', 'reviews'].includes(v)) setOperatorView(v);
+        if (['overview', 'experiences', 'bookings', 'calendar', 'customers', 'reviews', 'payouts', 'analytics', 'settings'].includes(v)) setOperatorView(v);
       }
     };
     sync();
@@ -213,11 +213,14 @@ const adminTitles: Record<AdminView, [string, string]> = {
 
 const operatorTitles: Record<OperatorView, [string, string]> = {
   overview: ['Operator overview', 'Today’s bookings, capacity and earnings at a glance.'],
-  experiences: ['My experiences', 'Manage what travelers can discover and book.'],
+  experiences: ['My Experiences', 'Create, manage and grow your experiences.'],
   bookings: ['Bookings', 'Prepare for guests and update attendance.'],
-  calendar: ['Calendar & availability', 'Control bookable time slots and capacity.'],
-  earnings: ['Earnings', 'Review booking value and statements.'],
-  reviews: ['Reviews', 'Read guest feedback and respond.']
+  calendar: ['Calendar', 'View and manage your scheduled experiences and bookings.'],
+  customers: ['Customers', 'Manage your customers and relationships.'],
+  reviews: ['Reviews', 'Read guest feedback and respond.'],
+  payouts: ['Payouts', 'Review booking value and statements.'],
+  analytics: ['Analytics', 'Detailed insights into your performance.'],
+  settings: ['Settings', 'Manage your business profile and preferences.']
 };
 
 function SidebarAdmin({ active, nav, logout }: { active: AdminView; nav: (v: AdminView) => void; logout: () => void }) {
@@ -256,12 +259,15 @@ function SidebarAdmin({ active, nav, logout }: { active: AdminView; nav: (v: Adm
 
 function SidebarOperator({ active, nav, logout }: { active: OperatorView; nav: (v: OperatorView) => void; logout: () => void }) {
   const items: [OperatorView, string, ReactNode][] = [
-    ['overview', 'Overview', <Home size={20}/>],
-    ['experiences', 'My Experiences', <Store size={20}/>],
+    ['overview', 'Overview', <LayoutDashboard size={20}/>],
+    ['experiences', 'Experiences', <BookOpen size={20}/>],
     ['bookings', 'Bookings', <TicketCheck size={20}/>],
+    ['customers', 'Customers', <Users size={20}/>],
     ['calendar', 'Calendar', <CalendarDays size={20}/>],
-    ['earnings', 'Earnings', <CircleDollarSign size={20}/>],
-    ['reviews', 'Reviews', <Star size={20}/>]
+    ['reviews', 'Reviews', <Star size={20}/>],
+    ['payouts', 'Payouts', <CircleDollarSign size={20}/>],
+    ['analytics', 'Analytics', <BarChart3 size={20}/>],
+    ['settings', 'Settings', <Settings size={20}/>]
   ];
   return (
     <aside className='mc-sidebar'>
@@ -1321,9 +1327,252 @@ function OperatorApplicationsPage({ state }: { state: State }) {
     </div>
   );
 }
-// Operator routing stub - Uses similar styling framework
+// Operator routing and pages
 function OperatorRouter({ view, state, operator, act, nav }: { view: OperatorView; state: State; operator: Operator; act: (a: string, p?: Record<string, unknown>) => Promise<boolean>; nav: (v: OperatorView) => void }) {
-  if (view === 'experiences') return <div className="mc-card">Operator experiences placeholder.</div>;
+  if (view === 'experiences') return <OperatorExperiencesPage state={state} act={act} />;
+  if (view === 'calendar') return <OperatorCalendarPage state={state} act={act} />;
   if (view === 'bookings') return <BookingsPage state={state} act={act} />;
-  return <div className="mc-card">Operator overview placeholder.</div>;
+  
+  if (view === 'customers') return <div className="mc-card"><h2>Customers</h2><p>Customer management placeholder.</p></div>;
+  if (view === 'reviews') return <div className="mc-card"><h2>Reviews</h2><p>Operator reviews placeholder.</p></div>;
+  if (view === 'payouts') return <div className="mc-card"><h2>Payouts</h2><p>Operator payouts placeholder.</p></div>;
+  if (view === 'analytics') return <div className="mc-card"><h2>Analytics</h2><p>Operator analytics placeholder.</p></div>;
+  if (view === 'settings') return <div className="mc-card"><h2>Settings</h2><p>Operator settings placeholder.</p></div>;
+
+  return <div className="mc-card"><h2>Overview</h2><p>Operator overview placeholder.</p></div>;
+}
+
+function OperatorExperiencesPage({ state, act }: { state: State; act: (a: string, p?: Record<string, unknown>) => Promise<boolean> }) {
+  const exps = state.experiences;
+  
+  return (
+    <div className='mc-table-card'>
+      <div className='mc-toolbar'>
+        <div className='mc-search'>
+          <Search size={18}/>
+          <input type='text' placeholder='Search experiences...'/>
+        </div>
+        <select><option>All Categories</option></select>
+        <select><option>All Statuses</option></select>
+        <button className='mc-button mc-secondary'><Filter size={16}/> Filter</button>
+        <div style={{marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8}}>
+          <span style={{fontSize: 13, color: 'var(--mc-gray)'}}>Sort by:</span>
+          <select><option>Newest First</option></select>
+        </div>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Experience</th>
+            <th>Location</th>
+            <th>Category</th>
+            <th>Duration</th>
+            <th>Price (NPR)</th>
+            <th>Status</th>
+            <th>Bookings</th>
+            <th>Rating</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exps.map(e => (
+            <tr key={e.id}>
+              <td>
+                <div style={{display: 'flex', gap: 12, alignItems: 'center', width: 300}}>
+                  <div style={{width: 64, height: 44, background: '#eee', borderRadius: 4, overflow: 'hidden', flexShrink: 0}}>
+                    <img src={`https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=100&q=80`} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt=""/>
+                  </div>
+                  <div style={{minWidth: 0}}>
+                    <div style={{fontWeight: 600, color: 'var(--mc-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{e.title}</div>
+                    <div style={{fontSize: 12, color: 'var(--mc-gray)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>Experience local culture and traditions.</div>
+                  </div>
+                </div>
+              </td>
+              <td><div style={{display:'flex', alignItems:'center', gap:4, color: 'var(--mc-gray)', whiteSpace: 'nowrap'}}><MapPin size={14}/> Kathmandu</div></td>
+              <td><div style={{display:'flex', alignItems:'center', gap:4, color: 'var(--mc-gray)', whiteSpace: 'nowrap'}}><BookOpen size={14}/> {e.category}</div></td>
+              <td><div style={{display:'flex', alignItems:'center', gap:4, color: 'var(--mc-gray)', whiteSpace: 'nowrap'}}><Clock size={14}/> 3 Hours</div></td>
+              <td style={{whiteSpace: 'nowrap'}}>NPR {e.price.toLocaleString()}</td>
+              <td><Badge tone={e.status==='active'?'success':'neutral'}>{e.status}</Badge></td>
+              <td>{e.bookings}</td>
+              <td>
+                <div style={{display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600}}>
+                  <Star size={14} fill="#F59E0B" color="#F59E0B"/> {e.rating}
+                </div>
+                <div style={{fontSize: 12, color: 'var(--mc-gray)'}}>(124)</div>
+              </td>
+              <td>
+                <div style={{display: 'flex', gap: 4}}>
+                  <button className='mc-icon-btn' title="Edit"><Edit3 size={16}/></button>
+                  <button className='mc-icon-btn' title="Pause"><Pause size={16}/></button>
+                  <button className='mc-icon-btn' title="Duplicate"><Copy size={16}/></button>
+                  <button className='mc-icon-btn' title="View"><Eye size={16}/></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      <div className='mc-pagination' style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 24, borderTop: '1px solid var(--mc-border)'}}>
+        <div style={{fontSize: 13, color: 'var(--mc-gray)'}}>Showing 1 to {exps.length} of {exps.length} experiences</div>
+        <div style={{display: 'flex', gap: 4}}>
+          <button className='mc-button mc-secondary' style={{width: 32, height: 32, padding: 0, minWidth: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>&lt;</button>
+          <button className='mc-button mc-primary' style={{width: 32, height: 32, padding: 0, minWidth: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>1</button>
+          <button className='mc-button mc-secondary' style={{width: 32, height: 32, padding: 0, minWidth: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>&gt;</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OperatorCalendarPage({ state, act }: { state: State; act: (a: string, p?: Record<string, unknown>) => Promise<boolean> }) {
+  return (
+    <div style={{display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24}}>
+      <div className='mc-card' style={{padding: 0, overflow: 'hidden'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--mc-border)'}}>
+           <div style={{display: 'flex', gap: 16, alignItems: 'center'}}>
+             <button className='mc-button mc-secondary'>Today</button>
+             <div style={{display: 'flex', gap: 4}}>
+               <button className='mc-icon-btn'>&lt;</button>
+               <button className='mc-icon-btn'>&gt;</button>
+             </div>
+             <h2 style={{margin: 0, fontSize: 18}}>May 2025</h2>
+           </div>
+           <div style={{display: 'flex', gap: 12}}>
+             <select><option>All Experiences</option></select>
+             <select><option>All Guides</option></select>
+             <select><option>All Status</option></select>
+           </div>
+        </div>
+        
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--mc-border)'}}>
+           {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+             <div key={d} style={{padding: '12px 16px', fontWeight: 600, fontSize: 14, textAlign: 'center', borderRight: '1px solid var(--mc-border)'}}>{d}</div>
+           ))}
+        </div>
+        
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 120}}>
+           {Array.from({length: 31}).map((_, i) => {
+             const day = i + 1;
+             return (
+               <div key={i} style={{borderRight: '1px solid var(--mc-border)', borderBottom: '1px solid var(--mc-border)', padding: 8, background: day === 14 ? 'rgba(59, 130, 246, 0.05)' : 'transparent'}}>
+                  <div style={{
+                    fontSize: 14, 
+                    fontWeight: day === 14 ? 600 : 400,
+                    color: day === 14 ? '#fff' : 'var(--mc-gray)', 
+                    background: day === 14 ? 'var(--mc-dark)' : 'transparent',
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 8
+                  }}>{day}</div>
+                  
+                  {day % 4 === 0 && (
+                    <div style={{background: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6', padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      Patan Durbar Square
+                    </div>
+                  )}
+                  {day % 5 === 0 && (
+                    <div style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      Golden Temple Visit
+                    </div>
+                  )}
+                  {day % 7 === 0 && (
+                    <div style={{background: 'rgba(245, 158, 11, 0.1)', color: '#F59E0B', padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                      Woodcarving Walk
+                    </div>
+                  )}
+               </div>
+             )
+           })}
+        </div>
+      </div>
+      
+      <div style={{display: 'flex', flexDirection: 'column', gap: 24}}>
+        <div style={{display: 'flex', gap: 12}}>
+          <button className='mc-button mc-primary' style={{flex: 1, padding: 0, minWidth: 0}}><CalendarDays size={18} style={{margin:'0 auto'}}/></button>
+          <button className='mc-button mc-secondary' style={{flex: 1, padding: 0, minWidth: 0}}><LayoutDashboard size={18} style={{margin:'0 auto'}}/></button>
+          <button className='mc-button mc-primary' style={{flex: 3}}><Plus size={16}/> Add Booking</button>
+        </div>
+        
+        <div className='mc-card'>
+           <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 20}}>
+             <h3 style={{margin: 0, fontSize: 16}}>Upcoming Events</h3>
+             <a href="#" style={{fontSize: 13, color: 'var(--mc-teal)', textDecoration: 'none'}}>View all</a>
+           </div>
+           <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+             {[
+               {c: '#10B981', t: 'Golden Temple Visit', d: 'May 15, 2025 • 9:00 AM', b: 7},
+               {c: '#3B82F6', t: 'Mangal Bazaar Tour', d: 'May 15, 2025 • 1:00 PM', b: 5},
+               {c: '#F59E0B', t: 'Woodcarving Walk', d: 'May 16, 2025 • 10:00 AM', b: 4},
+               {c: '#EF4444', t: 'Patan Durbar Square', d: 'May 18, 2025 • 9:30 AM', b: 9}
+             ].map((e, i) => (
+               <div key={i} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                 <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                   <div style={{width: 8, height: 8, borderRadius: '50%', background: e.c}}/>
+                   <div>
+                     <div style={{fontSize: 13, fontWeight: 500, color: 'var(--mc-dark)', marginBottom: 2}}>{e.t}</div>
+                     <div style={{fontSize: 12, color: 'var(--mc-gray)'}}>{e.d}</div>
+                   </div>
+                 </div>
+                 <div style={{fontSize: 12, fontWeight: 500, color: 'var(--mc-gray)'}}>{e.b} bookings</div>
+               </div>
+             ))}
+           </div>
+        </div>
+        
+        <div className='mc-card'>
+           <h3 style={{margin: '0 0 4px', fontSize: 16}}>Today's Schedule</h3>
+           <div style={{fontSize: 13, color: 'var(--mc-gray)', marginBottom: 20}}>Wednesday, May 14, 2025</div>
+           
+           <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+             {[
+               {t: '9:00 AM', c: '#10B981', name: 'Golden Temple Visit', g: 'Rajan Shrestha', b: '6 / 10'},
+               {t: '11:30 AM', c: '#F59E0B', name: 'Woodcarving Walk', g: 'Sita Maharjan', b: '4 / 8'},
+               {t: '1:00 PM', c: '#3B82F6', name: 'Mangal Bazaar Tour', g: 'Anil Lama', b: '8 / 12'},
+               {t: '3:30 PM', c: '#8B5CF6', name: 'Kumbheshwar Tour', g: 'Nabin Joshi', b: '5 / 8'}
+             ].map((e, i) => (
+               <div key={i} style={{display: 'flex', gap: 16, border: '1px solid var(--mc-border)', borderRadius: 6, padding: '16px 12px', borderLeft: `4px solid ${e.c}`}}>
+                 <div style={{fontSize: 12, fontWeight: 600, width: 55, color: e.c}}>{e.t}</div>
+                 <div style={{flex: 1}}>
+                   <div style={{fontSize: 14, fontWeight: 500, marginBottom: 4, color: 'var(--mc-dark)'}}>{e.name}</div>
+                   <div style={{fontSize: 12, color: 'var(--mc-gray)'}}>Guide: {e.g}</div>
+                 </div>
+                 <div style={{textAlign: 'right'}}>
+                   <div style={{fontSize: 14, fontWeight: 600, color: 'var(--mc-dark)', marginBottom: 2}}>{e.b}</div>
+                   <div style={{fontSize: 11, color: 'var(--mc-gray)'}}>bookings</div>
+                 </div>
+               </div>
+             ))}
+           </div>
+        </div>
+        
+        <div>
+          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 12}}>
+            <h3 style={{margin: 0, fontSize: 16}}>Quick Stats</h3>
+            <span style={{fontSize: 12, color: 'var(--mc-gray)'}}>Today</span>
+          </div>
+          <div style={{display: 'flex', gap: 12}}>
+            <div className='mc-card' style={{flex: 1, padding: '16px 12px', textAlign: 'center'}}>
+              <div style={{fontSize: 24, fontWeight: 600, color: 'var(--mc-dark)', marginBottom: 4}}>23</div>
+              <div style={{fontSize: 11, color: 'var(--mc-gray)'}}>Total Bookings</div>
+            </div>
+            <div className='mc-card' style={{flex: 1, padding: '16px 12px', textAlign: 'center'}}>
+              <div style={{fontSize: 24, fontWeight: 600, color: 'var(--mc-dark)', marginBottom: 4}}>4</div>
+              <div style={{fontSize: 11, color: 'var(--mc-gray)'}}>Experiences</div>
+            </div>
+            <div className='mc-card' style={{flex: 1, padding: '16px 12px', textAlign: 'center'}}>
+              <div style={{fontSize: 24, fontWeight: 600, color: 'var(--mc-dark)', marginBottom: 4}}>3</div>
+              <div style={{fontSize: 11, color: 'var(--mc-gray)'}}>Guides Working</div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  );
 }
